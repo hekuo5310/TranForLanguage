@@ -15,7 +15,7 @@
     <dependency><groupId>junit</groupId><artifactId>junit</artifactId><version>4.13.2</version><scope>test</scope></dependency>
   </dependencies>
   <build>
-    <resources><resource><directory>src/main/resources</directory><filtering>true</filtering></resource><resource><directory>.</directory><includes><include>tranforcpp_api.h</include></includes></resource></resources>
+    <resources><resource><directory>src/main/resources</directory><filtering>true</filtering></resource><resource><directory>.</directory><includes><include>tranforcpp_api.h</include><include>LICENSE</include></includes></resource></resources>
     <plugins>
       <plugin><groupId>org.codehaus.mojo</groupId><artifactId>build-helper-maven-plugin</artifactId><version>3.6.1</version><executions>
         <execution><id>core</id><phase>generate-sources</phase><goals><goal>add-source</goal></goals><configuration><sources><source>core/src/main/java</source></sources></configuration></execution>

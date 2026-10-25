@@ -25,6 +25,8 @@ jobs:
       - run: python3 scripts/test-versions.py
       - name: Compile against exact Spigot API
         run: mvn -B -ntp verify -Dspigot.version=${{ matrix.api }}-R0.1-SNAPSHOT -DskipTests=${{ matrix.api != '1.8' }}
+      - name: Verify plugin metadata and Java 8 artifact
+        run: python3 scripts/check-artifact.py spigot '${{ matrix.api }}' 8 'target/tranforcpp-spigot-*.jar'
       - uses: actions/upload-artifact@v4
         if: matrix.api == '1.8'
         with:
@@ -71,6 +73,8 @@ jobs:
       - run: python3 scripts/configure-build.py '${{ matrix.loader }}' '${{ matrix.minecraft }}'
       - name: Build remapped or unobfuscated mod for the exact game target
         run: gradle -p adapters/${{ matrix.loader }} --no-daemon build -Dorg.gradle.java.installations.paths="$JAVA_HOME_17_X64,$JAVA_HOME_21_X64,$JAVA_HOME_25_X64"
+      - name: Verify mod descriptor, entrypoint and remapped artifact
+        run: python3 scripts/check-artifact.py '${{ matrix.loader }}' '${{ matrix.minecraft }}' '${{ matrix.java }}' 'adapters/${{ matrix.loader }}/build/libs/*.jar'
       - uses: actions/upload-artifact@v4
         with:
           name: tranforcpp-${{ matrix.loader }}-${{ matrix.minecraft }}
