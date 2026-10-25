@@ -4,9 +4,8 @@
 
 ---
 ## 赞助商
-- [HKMC云](https://cloud.hkmc.online/) 请选择销售时选择Xiao_Q以获得Xiao_Q专属福利
-- [各种AI免费api](https://qm.qq.com/q/XNgDgosu4M)
-- D.R.C Minecraft服务器 [官网](https://www.drc-org.top/)
+- [ZawaZawa](https://www.zawa.uk/) --- 视频、专栏与动态社区
+- [Nodeloc](https://www.nodeloc.com/invites/QUeeBS9RU3) 自由、平等、友好、开放、有趣的互联网交流社区
 ---
 
 ## 使用方法
