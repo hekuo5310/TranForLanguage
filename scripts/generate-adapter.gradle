@@ -34,7 +34,7 @@ def generate = tasks.register('generateAdapter') {
             def replacements = [LOADER: project.name, FML: neo ? 'net.neoforged.fml' : 'net.minecraftforge.fml', EVENTBUS: neo ? 'net.neoforged.bus.api' : (forgeBus7 ? 'net.minecraftforge.eventbus.api.listener' : 'net.minecraftforge.eventbus.api'), ROOT: neo ? 'net.neoforged.neoforge' : 'net.minecraftforge', BUS: neo ? 'net.neoforged.neoforge.common.NeoForge' : 'net.minecraftforge.common.MinecraftForge', LEVEL: 'level', REGISTER: forgeBus7 ? 'net.minecraftforge.eventbus.api.bus.BusGroup.DEFAULT.register(java.lang.invoke.MethodHandles.lookup(), this)' : ((neo ? 'net.neoforged.neoforge.common.NeoForge' : 'net.minecraftforge.common.MinecraftForge') + '.EVENT_BUS.register(this)')]
             def source = file('../forge/src/main/templates/TranforForge.java').getText('UTF-8')
             replacements.each { key, value -> source = source.replace("@${key}@", value) }
-            if (neo && mc.startsWith('26.')) source = source.replace('BlockEvent.BreakEvent', 'net.neoforged.neoforge.event.level.block.BreakBlockEvent')
+            if (neo && mc.startsWith('26.') && !(mc in ['26.1', '26.1.1'])) source = source.replace('BlockEvent.BreakEvent', 'net.neoforged.neoforge.event.level.block.BreakBlockEvent')
             target.setText(source, 'UTF-8')
         }
     }
