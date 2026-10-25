@@ -9,6 +9,8 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.logging.Handler;
+import java.util.logging.LogRecord;
 import java.util.logging.Logger;
 import static org.junit.Assert.*;
 
@@ -81,6 +83,43 @@ public class ProgramRuntimeTest {
         write("program.json", "{\"language\":\"example\"}");
         runtime.reload().get(5, TimeUnit.SECONDS); await(() -> !platform.tasks.isEmpty());
         platform.tasks.remove().run();
+    }
+    @Test public void fullQueueWarningsAreRateLimitedAcrossThreadsAndResetOnReload() throws Exception {
+        write("program.json", "{\"language\":\"process\",\"command\":[\"python3\",\"-u\",\"main.py\"]}");
+        // Keep stdin blocked so the bounded queue must discard excess events.
+        write("main.py", "import time\ntime.sleep(60)\n");
+        List<Long> warnings = new CopyOnWriteArrayList<>();
+        Handler handler = new Handler() {
+            public void publish(LogRecord record) {
+                if (record.getMessage().startsWith("Program event queue full:")) warnings.add(System.nanoTime());
+            }
+            public void flush() {}
+            public void close() {}
+        };
+        Logger logger = platform.logger();
+        logger.addHandler(handler);
+        ExecutorService callers = Executors.newFixedThreadPool(4);
+        try {
+            runtime.reload().get(5, TimeUnit.SECONDS);
+            char[] large = new char[2 * 1024 * 1024]; Arrays.fill(large, 'x');
+            runtime.sendEvent("blocked", new String(large));
+            List<Future<?>> sends = new ArrayList<>();
+            long overflowStarted = System.nanoTime();
+            for (int thread = 0; thread < 4; thread++) sends.add(callers.submit(() -> {
+                for (int i = 0; i < 750; i++) runtime.sendEvent("overflow");
+            }));
+            for (Future<?> send : sends) send.get(5, TimeUnit.SECONDS);
+            assertEquals("Concurrent drops should produce one warning", 1, warnings.size());
+            await(() -> { runtime.sendEvent("still full"); return warnings.size() == 2; });
+            assertTrue(warnings.get(1) - overflowStarted >= TimeUnit.SECONDS.toNanos(5));
+            runtime.reload().get(5, TimeUnit.SECONDS);
+            runtime.sendEvent("blocked", new String(large));
+            for (int i = 0; i < 3000; i++) runtime.sendEvent("overflow");
+            assertEquals("New sessions should warn immediately", 3, warnings.size());
+        } finally {
+            callers.shutdownNow();
+            logger.removeHandler(handler);
+        }
     }
     static class FakePlatform implements Platform {
         final File dir;

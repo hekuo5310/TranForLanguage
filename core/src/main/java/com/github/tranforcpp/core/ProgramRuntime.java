@@ -10,6 +10,7 @@ import java.util.concurrent.atomic.AtomicLong;
 /** One ordered writer per process; bounded queues; no game API on IO threads. */
 public final class ProgramRuntime implements AutoCloseable {
     private static final String SHUTDOWN = "{\"event\":\"shutdown\",\"args\":[]}";
+    private static final long QUEUE_WARNING_INTERVAL_NANOS = TimeUnit.SECONDS.toNanos(5);
     private final Platform platform;
     private final LanguageProviders languages = new LanguageProviders();
     public LanguageProviders languages() { return languages; }
@@ -48,7 +49,7 @@ public final class ProgramRuntime implements AutoCloseable {
         JsonArray values = new JsonArray();
         for (Object arg : args) values.add(arg == null ? "null" : String.valueOf(arg));
         event.add("args", values);
-        if (!s.queue.offer(gson.toJson(event))) platform.logger().warning("Program event queue full: " + name);
+        if (!s.queue.offer(gson.toJson(event))) s.warnQueueFull(name);
     }
     private void handle(String line, Session source) {
         try {
@@ -82,6 +83,7 @@ public final class ProgramRuntime implements AutoCloseable {
         final Process process;
         final long generation;
         final BlockingQueue<String> queue = new ArrayBlockingQueue<>(2000);
+        final AtomicLong lastQueueWarning = new AtomicLong(System.nanoTime() - QUEUE_WARNING_INTERVAL_NANOS);
         final BufferedWriter writer;
         final Thread sender;
         volatile boolean stopped;
@@ -104,6 +106,14 @@ public final class ProgramRuntime implements AutoCloseable {
             sender.start();
             daemon(() -> read(process.getInputStream(), false), "TranforProgram-Reader").start();
             daemon(() -> read(process.getErrorStream(), true), "TranforProgram-Stderr").start();
+        }
+        void warnQueueFull(String name) {
+            long now = System.nanoTime();
+            long last = lastQueueWarning.get();
+            if (now - last >= QUEUE_WARNING_INTERVAL_NANOS && lastQueueWarning.compareAndSet(last, now)) {
+                platform.logger().warning("Program event queue full: " + name
+                    + " (dropping events; warnings limited to once every 5 seconds)");
+            }
         }
         void read(InputStream stream, boolean error) {
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
