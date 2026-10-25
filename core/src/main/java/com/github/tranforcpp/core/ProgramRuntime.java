@@ -10,6 +10,7 @@ import java.util.concurrent.atomic.AtomicLong;
 /** One ordered writer per process; bounded queues; no game API on IO threads. */
 public final class ProgramRuntime implements AutoCloseable {
     private static final String SHUTDOWN = "{\"event\":\"shutdown\",\"args\":[]}";
+    private static final long DROP_WARNING_INTERVAL = TimeUnit.SECONDS.toNanos(5);
     private final Platform platform;
     private final LanguageProviders languages = new LanguageProviders();
     public LanguageProviders languages() { return languages; }
@@ -48,7 +49,10 @@ public final class ProgramRuntime implements AutoCloseable {
         JsonArray values = new JsonArray();
         for (Object arg : args) values.add(arg == null ? "null" : String.valueOf(arg));
         event.add("args", values);
-        if (!s.queue.offer(gson.toJson(event))) platform.logger().warning("Program event queue full: " + name);
+        if (!s.queue.offer(gson.toJson(event))) {
+            s.droppedSinceWarning.incrementAndGet();
+            s.reportDroppedEvents(false);
+        }
     }
     private void handle(String line, Session source) {
         try {
@@ -82,6 +86,8 @@ public final class ProgramRuntime implements AutoCloseable {
         final Process process;
         final long generation;
         final BlockingQueue<String> queue = new ArrayBlockingQueue<>(2000);
+        final AtomicLong droppedSinceWarning = new AtomicLong();
+        final AtomicLong lastDropWarning = new AtomicLong(System.nanoTime() - DROP_WARNING_INTERVAL);
         final BufferedWriter writer;
         final Thread sender;
         volatile boolean stopped;
@@ -113,7 +119,16 @@ public final class ProgramRuntime implements AutoCloseable {
                 }
             } catch (IOException e) { if (!stopped) platform.logger().warning("Program reader: " + e); }
         }
+        void reportDroppedEvents(boolean closing) {
+            long now = System.nanoTime();
+            long previous = lastDropWarning.get();
+            if (closing || (now - previous >= DROP_WARNING_INTERVAL && lastDropWarning.compareAndSet(previous, now))) {
+                long count = droppedSinceWarning.getAndSet(0);
+                if (count != 0) platform.logger().warning("Program event queue full; dropped " + count + " event(s)");
+            }
+        }
         void close() {
+            reportDroppedEvents(true);
             stopped = true; queue.clear(); queue.offer(SHUTDOWN);
             try {
                 if (!process.waitFor(1, TimeUnit.SECONDS)) process.destroy();

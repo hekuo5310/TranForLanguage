@@ -1,5 +1,6 @@
 name: TranforCPlusPlus
 version: '${project.version}'
+api-version: '1.13'
 main: com.github.tranforcpp.TranforCPlusPlus
 author: 'hekuo,Xiao-QDev'
 description: '让您的C++代码运行在Minecraft:JAVA服务器上!'

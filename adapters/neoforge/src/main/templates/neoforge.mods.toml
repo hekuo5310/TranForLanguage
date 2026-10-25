@@ -1,5 +1,4 @@
-modLoader="javafml"
-loaderVersion="[4,)"
+${javafml_metadata}
 license="Apache-2.0"
 [[mods]]
 modId="tranforcpp"

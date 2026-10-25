@@ -1,6 +1,7 @@
 Bundled dependencies in the Spigot distribution
 
-These dependencies are shaded and relocated to com.github.tranforcpp.internal.
+These dependencies are bundled in the Spigot JAR. Gson and Kyori namespaces
+are relocated to com.github.tranforcpp.internal.
 The project license does not replace their respective licenses.
 
 Adventure 4.17.0 (api, key, text-minimessage, text-serializer-legacy)
