@@ -15,7 +15,7 @@ Python 配置示例（同样适用于 Node.js、Java、预编译 Rust/Go 等）�
 {
   "protocol": 1,
   "language": "process",
-  "command": ["python3", "-u", "main.py"]
+  "command": ["python3", "-X", "utf8", "-u", "main.py"]
 }
 ```
 

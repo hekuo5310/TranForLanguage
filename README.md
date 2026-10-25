@@ -64,7 +64,7 @@ gradle -p adapters/forge clean build
 {
   "protocol": 1,
   "language": "process",
-  "command": ["python3", "-u", "main.py"]
+  "command": ["python3", "-X", "utf8", "-u", "main.py"]
 }
 ```
 

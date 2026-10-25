@@ -21,6 +21,9 @@ with zipfile.ZipFile(files[0]) as jar:
               if name.endswith('.class') and name.startswith('com/github/tranforcpp/')}
     assert max(majors) <= int(java) + 44, (java, majors)
     if loader == 'spigot':
+        for name in ['adventure', 'examination', 'gson', 'annotations']:
+            assert f'META-INF/licenses/{name}.txt' in names, f'Missing {name} license'
+        assert 'META-INF/THIRD-PARTY-NOTICES.txt' in names
         descriptor = jar.read('plugin.yml').decode()
         assert 'main: com.github.tranforcpp.TranforCPlusPlus' in descriptor
         assert 'version: \'1.2.0\'' in descriptor
