@@ -1,8 +1,27 @@
-plugins { id 'net.minecraftforge.gradle' version '[6.0,6.2)' }
+plugins {
+    id 'java'
+    id 'net.minecraftforge.gradle' version "${forge_gradle_version}"
+}
 apply from: '../../scripts/generate-adapter.gradle'
-repositories { mavenCentral() }
+def modernToolchain = forge_gradle_version.startsWith('7.')
 minecraft { mappings channel: 'official', version: minecraft_version }
-dependencies { minecraft "net.minecraftforge:forge:${minecraft_version}-${loader_version}" }
-processResources { from('src/main/templates/mods.toml') { into 'META-INF' } }
-// Forge switched to official runtime names in 1.20.6. Older targets still require SRG reobfuscation.
-if (minecraft_version == '1.20' || minecraft_version.matches('1\\.20\\.[1-4]')) jar.finalizedBy 'reobfJar'
+repositories {
+    if (modernToolchain) {
+        minecraft.mavenizer(it)
+        maven fg.forgeMaven
+        maven fg.minecraftLibsMaven
+    }
+    mavenCentral()
+}
+dependencies {
+    if (modernToolchain) implementation minecraft.dependency("net.minecraftforge:forge:${minecraft_version}-${loader_version}")
+    else minecraft "net.minecraftforge:forge:${minecraft_version}-${loader_version}"
+}
+processResources {
+    from('src/main/templates/mods.toml') {
+        into 'META-INF'
+        expand version: project.version, minecraft_version: minecraft_version, loader_version: loader_version
+    }
+}
+// The legacy toolchain produces SRG names. Forge 1.20.6+ uses official runtime names.
+if (!modernToolchain) jar.finalizedBy 'reobfJar'

@@ -15,6 +15,11 @@ class VersionRangeTest(unittest.TestCase):
         for version in ['26.4', '26.3-pre1', '1.19.4', '1.21-snapshot', '27.1']:
             self.assertFalse(v.in_range('fabric', version))
         self.assertFalse(v.in_range('forge', '26.1'))
+    def test_forge_toolchain_boundary(self):
+        self.assertEqual('6.0.54', v.row('forge', '1.20.4', 'x')['forge_gradle'])
+        self.assertEqual('7.0.3', v.row('forge', '1.20.6', 'x')['forge_gradle'])
+        self.assertEqual('9.6.0', v.row('forge', '1.21.11', 'x')['gradle'])
+
     def test_java_boundary(self):
         self.assertEqual('17', v.row('fabric', '1.20.4', 'x')['java'])
         self.assertEqual('21', v.row('fabric', '1.20.5', 'x')['java'])

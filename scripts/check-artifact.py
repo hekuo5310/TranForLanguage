@@ -2,6 +2,7 @@
 """Inspect the actual distributable rather than accepting a successful compile alone."""
 import json
 import struct
+import subprocess
 import sys
 import tomllib
 import zipfile
@@ -35,8 +36,8 @@ with zipfile.ZipFile(files[0]) as jar:
             assert descriptor['environment'] == 'server'
             assert 'com/github/tranforcpp/fabric/TranforFabric.class' in names
             if not minecraft.startswith('26.'):
-                bytecode = jar.read('com/github/tranforcpp/minecraft/MinecraftPlatform.class')
-                assert b'net/minecraft/server/MinecraftServer' not in bytecode, 'Fabric distributable was not remapped'
+                signatures = subprocess.check_output(['javap', '-classpath', str(files[0]), '-p', 'com.github.tranforcpp.fabric.TranforFabric'], text=True)
+                assert 'net.minecraft.server.level.ServerPlayer' not in signatures, 'Fabric distributable was not remapped'
         else:
             path = 'META-INF/neoforge.mods.toml' if loader == 'neoforge' else 'META-INF/mods.toml'
             descriptor = tomllib.loads(jar.read(path).decode())

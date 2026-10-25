@@ -81,17 +81,19 @@ def matrix_order(row):
 def row(loader, mc, release, api=''):
     modern = number(mc) >= (26, 1)
     java = '25' if modern else ('21' if number(mc) >= (1, 20, 5) else '17')
+    forge7 = loader == 'forge' and number(mc) >= (1, 20, 6)
     new_loom = modern or (loader == 'fabric' and mc == '1.21.11')
     # Legacy Forge/Loom use Gradle 8; unobfuscated 26.x uses Loom 1.17 + Gradle 9.
     return {'loader': loader, 'minecraft': mc, 'loader_version': release,
-            'fabric_api': api, 'java': java, 'gradle': '9.6.0' if new_loom else '8.14.3',
-            'loom': '1.17.21' if new_loom else '1.11.8'}
+            'fabric_api': api, 'java': java, 'gradle': '9.6.0' if new_loom or forge7 else '8.14.3',
+            'loom': '1.17.21' if new_loom else '1.11.8',
+            'forge_gradle': '7.0.3' if forge7 else '6.0.54'}
 
 
 def properties(row):
     return '\n'.join(f'{k}={v}' for k, v in {
         'minecraft_version': row['minecraft'], 'loader_version': row['loader_version'],
-        'java_version': row['java'], 'fabric_api_version': row['fabric_api'], 'loom_version': row['loom']}.items()) + '\n'
+        'java_version': row['java'], 'forge_gradle_version': row['forge_gradle'], 'fabric_api_version': row['fabric_api'], 'loom_version': row['loom']}.items()) + '\n'
 
 
 def main():

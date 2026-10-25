@@ -2,4 +2,7 @@ plugins { id 'net.neoforged.moddev' version '2.0.148' }
 apply from: '../../scripts/generate-adapter.gradle'
 repositories { mavenCentral() }
 neoForge { version = loader_version }
-processResources { from('src/main/templates/neoforge.mods.toml') { into 'META-INF' } }
+processResources { from('src/main/templates/neoforge.mods.toml') {
+    into 'META-INF'
+    expand version: project.version, minecraft_version: minecraft_version, loader_version: loader_version
+} }

@@ -62,7 +62,7 @@ jobs:
             25
       - name: Select Gradle JVM
         run: |
-          if [ '${{ matrix.gradle }}' = '9.6.0' ]; then
+          if [[ '${{ matrix.gradle }}' == 9.* ]]; then
             echo "JAVA_HOME=$JAVA_HOME_25_X64" >> "$GITHUB_ENV"
           else
             echo "JAVA_HOME=$JAVA_HOME_21_X64" >> "$GITHUB_ENV"
