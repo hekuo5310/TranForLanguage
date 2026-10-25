@@ -29,7 +29,7 @@ mvn clean verify
 
 ```bash
 python3 scripts/configure-build.py fabric 1.20
-# 按脚本输出安装对应 Gradle。旧版工具链运行于 JDK 21，26.x 运行于 JDK 25。
+# 按脚本输出安装对应 Gradle。Gradle 8 工具链运行于 JDK 21，Gradle 9 工具链运行于 JDK 25。
 gradle -p adapters/fabric clean build
 
 python3 scripts/configure-build.py neoforge 26.3

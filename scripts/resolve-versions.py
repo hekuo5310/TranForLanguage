@@ -67,16 +67,25 @@ def resolve():
         for endpoint in endpoints:
             if not any(r['loader'] == loader and r['minecraft'] == endpoint for r in rows):
                 raise ValueError(f'Official metadata missing required endpoint: {loader} {endpoint}')
-    return sorted(rows, key=lambda r: (r['loader'], number(r['minecraft'])))
+    return sorted(rows, key=matrix_order)
+
+
+def matrix_order(row):
+    endpoints = [('fabric', '26.3'), ('neoforge', '26.3'), ('forge', '1.21.11'),
+                 ('fabric', '1.20'), ('neoforge', '1.21'), ('forge', '1.20'),
+                 ('fabric', '1.21.11')]
+    pair = (row['loader'], row['minecraft'])
+    return (endpoints.index(pair) if pair in endpoints else len(endpoints), row['loader'], number(row['minecraft']))
 
 
 def row(loader, mc, release, api=''):
     modern = number(mc) >= (26, 1)
     java = '25' if modern else ('21' if number(mc) >= (1, 20, 5) else '17')
+    new_loom = modern or (loader == 'fabric' and mc == '1.21.11')
     # Legacy Forge/Loom use Gradle 8; unobfuscated 26.x uses Loom 1.17 + Gradle 9.
     return {'loader': loader, 'minecraft': mc, 'loader_version': release,
-            'fabric_api': api, 'java': java, 'gradle': '9.6.0' if modern else '8.14.3',
-            'loom': '1.17.21' if modern else '1.11.8'}
+            'fabric_api': api, 'java': java, 'gradle': '9.6.0' if new_loom else '8.14.3',
+            'loom': '1.17.21' if new_loom else '1.11.8'}
 
 
 def properties(row):

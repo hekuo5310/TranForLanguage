@@ -3,7 +3,7 @@ buildscript {
     dependencies { classpath "net.fabricmc:fabric-loom:${loom_version}" }
 }
 apply plugin: 'java'
-apply plugin: minecraft_version.startsWith('26.') ? 'net.fabricmc.fabric-loom' : 'fabric-loom'
+apply plugin: minecraft_version.startsWith('26.') ? 'net.fabricmc.fabric-loom' : (minecraft_version == '1.21.11' ? 'net.fabricmc.fabric-loom-remap' : 'fabric-loom')
 apply from: '../../scripts/generate-adapter.gradle'
 repositories { mavenCentral() }
 dependencies {

@@ -23,7 +23,7 @@ import java.io.File;
 @Mod("tranforcpp")
 public final class TranforForge {
     private volatile ProgramRuntime runtime;
-    public TranforForge() { @BUS@.EVENT_BUS.register(this); }
+    public TranforForge() { @REGISTER@; }
     private void emit(String name, Object... args) { ProgramRuntime r = runtime; if (r != null) r.sendEvent(name, args); }
     @SubscribeEvent public void start(ServerStartedEvent event) {
         runtime = new ProgramRuntime(new MinecraftPlatform(event.getServer(), new File("config/tranforcpp/programs")));

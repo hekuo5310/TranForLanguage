@@ -2,12 +2,66 @@
   "include": [
     {
       "loader": "fabric",
+      "minecraft": "26.3",
+      "loader_version": "0.20.1",
+      "fabric_api": "0.165.0+26.3",
+      "java": "25",
+      "gradle": "9.6.0",
+      "loom": "1.17.21"
+    },
+    {
+      "loader": "neoforge",
+      "minecraft": "26.3",
+      "loader_version": "26.3.0.99",
+      "fabric_api": "",
+      "java": "25",
+      "gradle": "9.6.0",
+      "loom": "1.17.21"
+    },
+    {
+      "loader": "forge",
+      "minecraft": "1.21.11",
+      "loader_version": "61.2.4",
+      "fabric_api": "",
+      "java": "21",
+      "gradle": "8.14.3",
+      "loom": "1.11.8"
+    },
+    {
+      "loader": "fabric",
       "minecraft": "1.20",
       "loader_version": "0.20.1",
       "fabric_api": "0.83.0+1.20",
       "java": "17",
       "gradle": "8.14.3",
       "loom": "1.11.8"
+    },
+    {
+      "loader": "neoforge",
+      "minecraft": "1.21",
+      "loader_version": "21.0.167",
+      "fabric_api": "",
+      "java": "21",
+      "gradle": "8.14.3",
+      "loom": "1.11.8"
+    },
+    {
+      "loader": "forge",
+      "minecraft": "1.20",
+      "loader_version": "46.0.14",
+      "fabric_api": "",
+      "java": "17",
+      "gradle": "8.14.3",
+      "loom": "1.11.8"
+    },
+    {
+      "loader": "fabric",
+      "minecraft": "1.21.11",
+      "loader_version": "0.20.1",
+      "fabric_api": "0.141.6+1.21.11",
+      "java": "21",
+      "gradle": "9.6.0",
+      "loom": "1.17.21"
     },
     {
       "loader": "fabric",
@@ -164,15 +218,6 @@
     },
     {
       "loader": "fabric",
-      "minecraft": "1.21.11",
-      "loader_version": "0.20.1",
-      "fabric_api": "0.141.6+1.21.11",
-      "java": "21",
-      "gradle": "8.14.3",
-      "loom": "1.11.8"
-    },
-    {
-      "loader": "fabric",
       "minecraft": "26.1",
       "loader_version": "0.20.1",
       "fabric_api": "0.145.1+26.1",
@@ -206,24 +251,6 @@
       "java": "25",
       "gradle": "9.6.0",
       "loom": "1.17.21"
-    },
-    {
-      "loader": "fabric",
-      "minecraft": "26.3",
-      "loader_version": "0.20.1",
-      "fabric_api": "0.165.0+26.3",
-      "java": "25",
-      "gradle": "9.6.0",
-      "loom": "1.17.21"
-    },
-    {
-      "loader": "forge",
-      "minecraft": "1.20",
-      "loader_version": "46.0.14",
-      "fabric_api": "",
-      "java": "17",
-      "gradle": "8.14.3",
-      "loom": "1.11.8"
     },
     {
       "loader": "forge",
@@ -361,24 +388,6 @@
       "loom": "1.11.8"
     },
     {
-      "loader": "forge",
-      "minecraft": "1.21.11",
-      "loader_version": "61.2.4",
-      "fabric_api": "",
-      "java": "21",
-      "gradle": "8.14.3",
-      "loom": "1.11.8"
-    },
-    {
-      "loader": "neoforge",
-      "minecraft": "1.21",
-      "loader_version": "21.0.167",
-      "fabric_api": "",
-      "java": "21",
-      "gradle": "8.14.3",
-      "loom": "1.11.8"
-    },
-    {
       "loader": "neoforge",
       "minecraft": "1.21.1",
       "loader_version": "21.1.265",
@@ -508,15 +517,6 @@
       "loader": "neoforge",
       "minecraft": "26.2",
       "loader_version": "26.2.0.93",
-      "fabric_api": "",
-      "java": "25",
-      "gradle": "9.6.0",
-      "loom": "1.17.21"
-    },
-    {
-      "loader": "neoforge",
-      "minecraft": "26.3",
-      "loader_version": "26.3.0.99",
       "fabric_api": "",
       "java": "25",
       "gradle": "9.6.0",

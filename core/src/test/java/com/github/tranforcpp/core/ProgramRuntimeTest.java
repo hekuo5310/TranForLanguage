@@ -30,7 +30,11 @@ public class ProgramRuntimeTest {
         assertTrue("Timed out waiting for program", condition.getAsBoolean());
     }
     @Test public void legacyCppCompilesAndDeliversSingleEventAndActions() throws Exception {
-        write("main.cpp", "#include <iostream>\n#include <string>\nint main(){std::string s;while(std::getline(std::cin,s)){if(s.find(\"shutdown\")!=std::string::npos)return 0;std::cout<<R\"({\"action\":\"executeCommand\",\"command\":\"say hello\"})\"<<std::endl;}}\n");
+        try (InputStream header = getClass().getResourceAsStream("/tranforcpp_api.h")) {
+            assertNotNull("C++ SDK must be packaged", header);
+            Files.copy(header, new File(platform.dir, "tranforcpp_api.h").toPath());
+        }
+        write("main.cpp", "#include \"tranforcpp_api.h\"\n#include <string>\nint main(){std::string s;while(std::getline(std::cin,s)){if(s.find(\"shutdown\")!=std::string::npos)return 0;dispatchCommand(\"say hello\");}}\n");
         runtime.reload().get(20, TimeUnit.SECONDS);
         assertTrue(runtime.isRunning());
         runtime.sendEvent("PlayerJoin", "one event only");
