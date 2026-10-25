@@ -32,7 +32,9 @@ public class FoliaCompatUtil {
         void cancel();
     }
 
-        private record ExecutorTaskHandle(ScheduledExecutorService scheduler) implements TaskHandle {
+        private static class ExecutorTaskHandle implements TaskHandle {
+        private final ScheduledExecutorService scheduler;
+        ExecutorTaskHandle(ScheduledExecutorService scheduler) { this.scheduler = scheduler; }
 
         @Override
             public void cancel() {

@@ -1,127 +1,96 @@
 # TranforC++
 
-用 C++ 编写 Spigot 插件
+让 Minecraft 服务端通过进程协议调用程序，默认保留现有 C++ 插件用法，并为其他语言提供统一扩展入口。
 
----
-## 赞助商
-- [ZawaZawa](https://www.zawa.uk/) --- 视频、专栏与动态社区
-- [Nodeloc](https://www.nodeloc.com/invites/QUeeBS9RU3) 自由、平等、友好、开放、有趣的互联网交流社区
----
+## 平台与构建
 
-## 使用方法
+| 产物 | 目标 | 构建工具 |
+| --- | --- | --- |
+| `tranforcpp-spigot-1.2.0.jar` | Spigot / 常规 Paper 分支，官方 API 1.8–26.3 | Maven |
+| `tranforcpp-fabric-<游戏版本>-1.2.0.jar` | Fabric 1.20–26.3，逐版本构建 | Gradle + Loom |
+| `tranforcpp-neoforge-<游戏版本>-1.2.0.jar` | NeoForge 1.21–26.3，逐版本构建 | Gradle + ModDevGradle |
+| `tranforcpp-forge-<游戏版本>-1.2.0.jar` | Forge 1.20.x–1.21.x，按官方已发布版本构建 | Gradle + ForgeGradle |
 
-## 1.编译
+目标范围与运行实测是不同的检查。[兼容说明](docs/compatibility.md)列出版本矩阵、尚未接入的模组事件和验证边界。Spigot 1.8 之前及 Folia 尚未建立兼容保障。
 
-**使用 Maven 编译**
+### Spigot
 
-```bash
-mvn clean package
-```
----
-
-**使用 Gradle 编译**
-
-**目前还有问题，请使用maven**
+需要 Maven 3.9 和 JDK 17 或以上。输出 Java 8 字节码，服务器仍需使用其 Minecraft 版本要求的 Java。
 
 ```bash
-./gradlew clean build
-# Windows 使用
-gradlew.bat clean build
+mvn clean verify
 ```
 
----
+安装 `target/tranforcpp-spigot-1.2.0.jar` 到 `plugins/`。不再为同一插件维护 Maven / Gradle 两份构建。
 
-## 1.不会编译?
+### Fabric / Forge / NeoForge
 
-**从 GitHub Release 下载**
-1. 下载 `maven-tranforcpp` 或 `gradle-tranforcpp`
-2. 将下载的 JAR 文件放入服务器的 `plugins/` 文件夹
-3. 将生成的 `tranforcpp-版本号.jar` 放入服务器的 `plugins/` 文件夹
+先从已锁定版本清单选择精确游戏版本：
 
-## 2.安装插件
+```bash
+python3 scripts/configure-build.py fabric 1.20
+# 按脚本输出安装对应 Gradle。旧版工具链运行于 JDK 21，26.x 运行于 JDK 25。
+gradle -p adapters/fabric clean build
 
-1. 将 `tranforcpp_api.h` 复制到 `plugins/C+plugins` 文件夹
+python3 scripts/configure-build.py neoforge 26.3
+gradle -p adapters/neoforge clean build
 
-2. 使用 `/tranforcpp reload` 命令编译并重载插件
+python3 scripts/configure-build.py forge 1.21
+gradle -p adapters/forge clean build
+```
 
+构建还需要目标游戏的 Java toolchain（17 / 21 / 25），见[版本锁文件](compatibility/versions.json)中的 `java` 与 `gradle` 字段。CI 自动安装这些 JDK 和正确的 Gradle。产物在相应 `adapters/<加载器>/build/libs/`，仅安装与服务器加载器及 Minecraft 版本完全一致的发行 JAR 到 `mods/`。Fabric 额外安装对应游戏版本的 Fabric API。
 
+也可从 GitHub Actions 下载按平台/游戏版本区分的产物；发布由 `v*` 标签触发，所有构建必须通过。
 
-## 环境要求
+## 安装程序
 
-- Java 21+ [Java向下兼容的]: #
-- Spigot 的分支
-- g++ 编译器（Windows 需要安装 MinGW-w64，Linux一般内置，未内置请安装 g++）
+| 平台 | 程序目录 |
+| --- | --- |
+| Spigot | `plugins/C++ Plugins/`（保留旧路径） |
+| 模组加载器 | `config/tranforcpp/programs/` |
 
-## 代码示例
+### 现有 C++ 程序
 
-<a herf="https://github.com/hekuo5310/tranforCgrass/blob/main/example_plugin.cpp" target="_blank">example_plugin.cpp</a>
+将 `.cpp` 和 [`tranforcpp_api.h`](tranforcpp_api.h) 放在程序目录。需要安装 `g++` / MinGW-w64（C++17、pthread），目录中所有 `.cpp` 编译为一个程序，编译记录写入 `compile.log`。程序应实现 `main()`，按行读取 JSON 并分发事件，收到 `shutdown` 后退出。头文件只提供发送辅助函数，不自动生成事件读取循环。
 
-## API 事件函数
+可使用 JVM 参数 `-Dtranforcpp.compiler=/path/to/clang++` 指定 GCC 参数兼容编译器。
 
-### 玩家事件
+### 其他语言
 
-- `void onPlayerJoin(const char* playerName)` - 玩家加入
-- `void onPlayerQuit(const char* playerName)` - 玩家退出
-- `void onPlayerChat(const char* playerName, const char* message)` - 玩家聊天
-- `void onPlayerMove(const char* playerName)` - 玩家移动
-- `void onPlayerRespawn(const char* playerName)` - 玩家重生
-- `void onPlayerDeath(const char* playerName, const char* deathMessage)` - 玩家死亡
-- `void onPlayerInteract(const char* playerName, const char* action, const char* itemType)` - 玩家交互
-- `void onPlayerDropItem(const char* playerName, const char* itemType)` - 玩家丢弃物品
-- `void onPlayerPickupItem(const char* playerName, const char* itemType)` - 玩家拾取物品
+核心不要求程序必须是 C/C++。参见可直接运行的 [Python 示例](examples/python)及[语言扩展与通信协议](docs/protocol.md)。例如：
 
-### 方块事件
+```json
+{
+  "protocol": 1,
+  "language": "process",
+  "command": ["python3", "-u", "main.py"]
+}
+```
 
-- `void onBlockBreak(const char* playerName, const char* blockType)` - 方块被破坏
-- `void onBlockPlace(const char* playerName, const char* blockType)` - 方块被放置
-- `void onBlockIgnite(const char* playerName, const char* blockType)` - 方块被点燃
+将它保存为程序目录内的 `program.json`，再放入 `main.py`。也可启动 Node.js、Java 或预编译 Rust/Go 程序，只要它实现相同 JSON Lines 协议。语言适配器可通过 `LanguageProvider` 注册编译流程，共用核心不包含游戏平台依赖。
 
-### 实体事件
-
-- `void onEntityDamage(const char* entityName, const char* damage)` - 实体受伤
-- `void onEntityDeath(const char* entityName)` - 实体死亡
-- `void onEntitySpawn(const char* entityType)` - 实体生成
-
-### 物品栏事件
-
-- `void onInventoryClick(const char* playerName, const char* slot, const char* itemType)` - 点击物品栏
-- `void onInventoryOpen(const char* playerName)` - 打开物品栏
-- `void onInventoryClose(const char* playerName)` - 关闭物品栏
-
-### 服务器事件
-
-- `void onServerCommand(const char* sender, const char* command)` - 服务器命令
-
-### 世界事件
-
-- `void onWorldLoad(const char* worldName)` - 世界加载
-- `void onWeatherChange(const char* worldName, const char* weatherState)` - 天气变化
-
-### 其他事件
-
-- `void onHangingBreak(const char* entityType, const char* cause)` - 悬挂实体被破坏
-- `void onShutdown()` - 插件关闭
-
-## API 辅助函数
-
-- `void broadcast(const char* message)` - 广播消息到所有玩家
-- `void sendMsg(const char* player, const char* message)` - 给指定玩家发送消息
-- `void console(const char* message)` - 输出到控制台
-- `void dispatchCommand(const char* command, bool sync = false)` - 执行 Minecraft 控制台指令
 ## 命令
 
-- `/tranforcpp reload` - 重新编译并加载 C++ 插件（需要权限）
-- `/tranforcpp version` - 查看插件版本
+- `/tranforcpp reload`：后台准备并重启程序；失败会明确反馈。
+- `/tranforcpp version`：显示桥接版本。
+- Spigot 还保留 `/cpp`、`version` 的 `ver` 别名与 `tranforcpp.use/reload/version` 权限节点。
+- 模组命令要求操作员级别 2。
 
-## 添加新事件映射
+程序可请求广播、私信、控制台日志和控制台命令，所有游戏操作通过服务器线程执行。Spigot 保留 MiniMessage 格式，模组端当前使用纯文本。
 
-详见 [mapping.md](mapping.md) 文档
+## 开发
 
-## 注意事项
+- [协议与语言扩展](docs/protocol.md)
+- [平台事件覆盖与兼容验证](docs/compatibility.md)
+- [原有 Bukkit 映射指南](mapping.md)
 
-1. 必须实现 `main()` 函数来处理 JSON 输入
-2. 必须实现 `onShutdown()` 函数并设置 `tranforcpp::running = false`
-3. JSON 参数解析需要根据事件类型正确处理参数数量
-4. 修改 Java 端代码后需要重新编译 JAR
-5. 修改 C++ 代码后使用 `/tranforcpp reload` 重载
-6. 辛巴巴,巴鲁比亚
+```bash
+mvn verify                       # 共用核心实际 C++ / Python 进程集成测试
+python3 scripts/test-versions.py  # 版本范围和 Java 边界
+```
+
+## 赞助商
+
+- [ZawaZawa](https://www.zawa.uk/) — 视频、专栏与动态社区
+- [Nodeloc](https://www.nodeloc.com/invites/QUeeBS9RU3) — 自由、平等、友好、开放、有趣的互联网交流社区

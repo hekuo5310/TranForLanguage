@@ -160,7 +160,8 @@ public class SmartThreadOptimizer {
             Object recentTps = minecraftServer.getClass()
                 .getField("recentTps").get(minecraftServer);
             
-            if (recentTps instanceof double[] tpsArray) {
+            if (recentTps instanceof double[]) {
+                double[] tpsArray = (double[]) recentTps;
                 return tpsArray.length > 0 ? tpsArray[0] : 20.0;
             }
         } catch (Exception ignored) {

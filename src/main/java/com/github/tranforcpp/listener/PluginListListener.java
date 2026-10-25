@@ -1,7 +1,7 @@
 package com.github.tranforcpp.listener;
 
 import com.github.tranforcpp.compiler.CppCompiler;
-import net.kyori.adventure.text.minimessage.MiniMessage;
+import com.github.tranforcpp.utils.Messages;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerCommandPreprocessEvent;
@@ -24,7 +24,7 @@ import java.util.concurrent.TimeUnit;
  */
 public class PluginListListener implements Listener {
     
-    private final MiniMessage mm = MiniMessage.miniMessage();
+
     private final ScheduledExecutorService delayedExecutor;
     
     public PluginListListener() {
@@ -41,7 +41,7 @@ public class PluginListListener implements Listener {
         if (message.equals("/pl") || message.equals("/plugins")) {
             delayedExecutor.schedule(() -> {
                 try {
-                    showTranforCPlugins(event.getPlayer());
+                    org.bukkit.Bukkit.getScheduler().runTask(com.github.tranforcpp.TranforCPlusPlus.getInstance(), () -> showTranforCPlugins(event.getPlayer()));
                 } catch (Exception ignored) {
                 }
             }, 50, TimeUnit.MILLISECONDS);
@@ -54,7 +54,7 @@ public class PluginListListener implements Listener {
         if (command.equals("pl") || command.equals("plugins")) {
             delayedExecutor.schedule(() -> {
                 try {
-                    showTranforCPlugins(event.getSender());
+                    org.bukkit.Bukkit.getScheduler().runTask(com.github.tranforcpp.TranforCPlusPlus.getInstance(), () -> showTranforCPlugins(event.getSender()));
                 } catch (Exception e) {
                     throw new RuntimeException(e);
                 }
@@ -73,10 +73,10 @@ public class PluginListListener implements Listener {
         List<File> cppFiles = compiler.getPluginFiles();
         
         if (cppFiles.isEmpty()) {
-            sender.sendMessage(mm.deserialize("<white>[<aqua>TranforC++<white>]<red>当前模块并未安装插件,因此本模块并不会开始正常工作!"));
+            sender.sendMessage(Messages.format("<white>[<aqua>TranforC++<white>]<red>当前模块并未安装插件,因此本模块并不会开始正常工作!"));
         } else {
-            sender.sendMessage(mm.deserialize("<aqua>□ <white>C+ plugins (<white>" + cppFiles.size() + "<white>):"));
-            sender.sendMessage(mm.deserialize("<aqua>TranforC++ Plugins (<aqua>" + cppFiles.size() + "<aqua>):"));
+            sender.sendMessage(Messages.format("<aqua>□ <white>C+ plugins (<white>" + cppFiles.size() + "<white>):"));
+            sender.sendMessage(Messages.format("<aqua>TranforC++ Plugins (<aqua>" + cppFiles.size() + "<aqua>):"));
             
             StringBuilder pluginNames = new StringBuilder();
             for (int i = 0; i < cppFiles.size(); i++) {
@@ -87,7 +87,7 @@ public class PluginListListener implements Listener {
                     pluginNames.append("<gray>, ");
                 }
             }
-            sender.sendMessage(mm.deserialize(pluginNames.toString()));
+            sender.sendMessage(Messages.format(pluginNames.toString()));
         }
     }
     public void shutdown() {

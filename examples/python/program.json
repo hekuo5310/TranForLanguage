@@ -1,0 +1,4 @@
+{
+  "language": "process",
+  "command": ["python3", "-u", "main.py"]
+}

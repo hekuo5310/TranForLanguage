@@ -1,0 +1,128 @@
+package com.github.tranforcpp.core;
+
+import com.google.gson.*;
+import com.github.tranforcpp.core.language.*;
+import java.io.*;
+import java.nio.charset.StandardCharsets;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicLong;
+
+/** One ordered writer per process; bounded queues; no game API on IO threads. */
+public final class ProgramRuntime implements AutoCloseable {
+    private static final String SHUTDOWN = "{\"event\":\"shutdown\",\"args\":[]}";
+    private final Platform platform;
+    private final LanguageProviders languages = new LanguageProviders();
+    public LanguageProviders languages() { return languages; }
+    private final Gson gson = new Gson();
+    private final ExecutorService lifecycle = Executors.newSingleThreadExecutor(r -> daemon(r, "TranforProgram-Lifecycle"));
+    private final AtomicLong generation = new AtomicLong();
+    private volatile Session session;
+    private volatile boolean closed;
+    public ProgramRuntime(Platform platform) { this.platform = platform; }
+    private static Thread daemon(Runnable r, String name) {
+        Thread t = new Thread(r, name); t.setDaemon(true); return t;
+    }
+    public synchronized CompletableFuture<Void> reload() {
+        if (closed) throw new IllegalStateException("Runtime closed");
+        final long expected = generation.incrementAndGet();
+        return CompletableFuture.runAsync(() -> {
+            stopSession();
+            try {
+                LaunchCommand command = languages.prepare(platform.directory(), platform.logger());
+                if (command == null || closed || generation.get() != expected) return;
+                Process process = new ProcessBuilder(command.arguments()).directory(command.directory()).start();
+                Session next = new Session(process, expected);
+                synchronized (this) {
+                    if (closed || generation.get() != expected) { process.destroyForcibly(); return; }
+                    session = next;
+                    next.start();
+                }
+            } catch (Exception e) { throw new CompletionException(e); }
+        }, lifecycle);
+    }
+    public boolean isRunning() { Session s = session; return s != null && s.process.isAlive(); }
+    public void sendEvent(String name, Object... args) {
+        Session s = session;
+        if (s == null || !s.process.isAlive()) return;
+        JsonObject event = new JsonObject(); event.addProperty("event", name);
+        JsonArray values = new JsonArray();
+        for (Object arg : args) values.add(arg == null ? "null" : String.valueOf(arg));
+        event.add("args", values);
+        if (!s.queue.offer(gson.toJson(event))) platform.logger().warning("Program event queue full: " + name);
+    }
+    private void handle(String line, Session source) {
+        try {
+            JsonObject message = gson.fromJson(line, JsonObject.class);
+            String action = message.get("action").getAsString();
+            platform.execute(() -> {
+                if (closed || session != source || generation.get() != source.generation) return;
+                try {
+                    switch (action) {
+                        case "broadcast": platform.broadcast(message.get("message").getAsString()); break;
+                        case "sendMessage": platform.sendMessage(message.get("player").getAsString(), message.get("message").getAsString()); break;
+                        case "console": platform.logger().info(message.get("message").getAsString()); break;
+                        case "dispatchCommand":
+                        case "executeCommand": platform.dispatchCommand(message.get("command").getAsString()); break;
+                        default: platform.logger().warning("Unknown Program action: " + action);
+                    }
+                } catch (RuntimeException e) { platform.logger().warning("Invalid Program action: " + e); }
+            });
+        } catch (RuntimeException e) { platform.logger().warning("Invalid Program JSON: " + line); }
+    }
+    private void stopSession() {
+        Session old = session; session = null;
+        if (old != null) old.close();
+    }
+    @Override public void close() {
+        synchronized (this) { closed = true; generation.incrementAndGet(); }
+        lifecycle.shutdownNow();
+        stopSession();
+    }
+    private final class Session {
+        final Process process;
+        final long generation;
+        final BlockingQueue<String> queue = new ArrayBlockingQueue<>(2000);
+        final BufferedWriter writer;
+        final Thread sender;
+        volatile boolean stopped;
+        Session(Process process, long generation) {
+            this.process = process; this.generation = generation;
+            writer = new BufferedWriter(new OutputStreamWriter(process.getOutputStream(), StandardCharsets.UTF_8));
+            sender = daemon(() -> {
+                try {
+                    while (process.isAlive()) {
+                        String line = queue.poll(100, TimeUnit.MILLISECONDS);
+                        if (line != null) { writer.write(line); writer.newLine(); writer.flush();
+                            if (line.equals(SHUTDOWN)) break;
+                        }
+                    }
+                } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+                catch (IOException e) { if (!stopped) platform.logger().warning("Program writer: " + e); }
+            }, "TranforProgram-Writer");
+        }
+        void start() {
+            sender.start();
+            daemon(() -> read(process.getInputStream(), false), "TranforProgram-Reader").start();
+            daemon(() -> read(process.getErrorStream(), true), "TranforProgram-Stderr").start();
+        }
+        void read(InputStream stream, boolean error) {
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    if (error) platform.logger().warning("Program: " + line); else handle(line, this);
+                }
+            } catch (IOException e) { if (!stopped) platform.logger().warning("Program reader: " + e); }
+        }
+        void close() {
+            stopped = true; queue.clear(); queue.offer(SHUTDOWN);
+            try {
+                if (!process.waitFor(1, TimeUnit.SECONDS)) process.destroy();
+                if (!process.waitFor(1, TimeUnit.SECONDS)) process.destroyForcibly();
+            } catch (InterruptedException e) { process.destroyForcibly(); Thread.currentThread().interrupt(); }
+            finally {
+                sender.interrupt();
+                if (process.isAlive()) process.destroyForcibly();
+            }
+        }
+    }
+}

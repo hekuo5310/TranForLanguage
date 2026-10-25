@@ -1,0 +1,27 @@
+package com.github.tranforcpp.minecraft;
+
+import com.github.tranforcpp.core.ProgramRuntime;
+import com.mojang.brigadier.CommandDispatcher;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.commands.Commands;
+import net.minecraft.network.chat.Component;
+
+public final class BridgeCommands {
+    public static void register(CommandDispatcher<CommandSourceStack> dispatcher, java.util.function.Supplier<ProgramRuntime> runtime) {
+        dispatcher.register(Commands.literal("tranforcpp")
+            .requires(@PERMISSION@)
+            .then(Commands.literal("version").executes(ctx -> {
+                ctx.getSource().sendSuccess(() -> Component.literal("TranforC++ 1.2.0"), false); return 1;
+            }))
+            .then(Commands.literal("reload").executes(ctx -> {
+                ProgramRuntime active = runtime.get();
+                if (active == null) { ctx.getSource().sendFailure(Component.literal("服务端尚未启动")); return 0; }
+                ctx.getSource().sendSuccess(() -> Component.literal("正在重载程序..."), false);
+                active.reload().whenComplete((v, error) -> ctx.getSource().getServer().execute(() -> {
+                    if (error == null) ctx.getSource().sendSuccess(() -> Component.literal("重载完成"), false);
+                    else ctx.getSource().sendFailure(Component.literal("重载失败: " + error.getMessage()));
+                }));
+                return 1;
+            })));
+    }
+}

@@ -1,0 +1,20 @@
+buildscript {
+    repositories { maven { url = 'https://maven.fabricmc.net/' }; mavenCentral(); gradlePluginPortal() }
+    dependencies { classpath "net.fabricmc:fabric-loom:${loom_version}" }
+}
+apply plugin: 'java'
+apply plugin: minecraft_version.startsWith('26.') ? 'net.fabricmc.fabric-loom' : 'fabric-loom'
+apply from: '../../scripts/generate-adapter.gradle'
+repositories { mavenCentral() }
+dependencies {
+    minecraft "com.mojang:minecraft:${minecraft_version}"
+    if (!minecraft_version.startsWith('26.')) mappings loom.officialMojangMappings()
+    if (minecraft_version.startsWith('26.')) {
+        implementation "net.fabricmc:fabric-loader:${loader_version}"
+        implementation "net.fabricmc.fabric-api:fabric-api:${fabric_api_version}"
+    } else {
+        modImplementation "net.fabricmc:fabric-loader:${loader_version}"
+        modImplementation "net.fabricmc.fabric-api:fabric-api:${fabric_api_version}"
+    }
+    compileOnly 'com.google.code.gson:gson:2.10.1'
+}

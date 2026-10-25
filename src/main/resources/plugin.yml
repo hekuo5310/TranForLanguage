@@ -1,8 +1,6 @@
 name: TranforCPlusPlus
-version: '1.1.2'
+version: '${project.version}'
 main: com.github.tranforcpp.TranforCPlusPlus
-api-version: '1.20'
-folia-supported: true
 author: 'hekuo,Xiao-QDev'
 description: '让您的C++代码运行在Minecraft:JAVA服务器上!'
 permissions:
@@ -16,3 +14,9 @@ permissions:
     description: Allow checking plugin version
     default: op
 
+commands:
+  tranforcpp:
+    description: Manage C++ plugins
+    usage: /<command> <reload|version>
+    aliases: [cpp]
+    permission: tranforcpp.use

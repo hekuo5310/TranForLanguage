@@ -1,0 +1,44 @@
+// Shared compilation inputs; all game references are compiled by the loader toolchain.
+version = '1.2.0'
+group = 'com.github.tranforcpp'
+def mc = minecraft_version
+boolean modernPermissions = mc.startsWith('26.') || mc == '1.21.11'
+String permission = modernPermissions
+    ? 'source -> source.permissions().hasPermission(net.minecraft.server.permissions.Permissions.COMMANDS_MODERATOR)'
+    : (mc.startsWith('1.21.') && (mc.split('\\.')[2] as int) >= 6
+        ? 'Commands.hasPermission(2)' : 'source -> source.hasPermission(2)')
+def generate = tasks.register('generateAdapter') {
+    inputs.dir('../minecraft/src/main/java')
+    inputs.dir('../forge/src/main/templates')
+    inputs.property('minecraft', mc)
+    inputs.property('loader', project.name)
+    outputs.dir(layout.buildDirectory.dir('generated/adapter'))
+    doLast {
+        def dest = layout.buildDirectory.dir('generated/adapter').get().asFile
+        delete dest
+        def shared = new File(dest, 'com/github/tranforcpp/minecraft')
+        shared.mkdirs()
+        new File(shared, 'BridgeCommands.java').text = file('../minecraft/src/main/java/com/github/tranforcpp/minecraft/BridgeCommands.java.template').getText('UTF-8').replace('@PERMISSION@', permission)
+        if (project.name != 'fabric') {
+            boolean neo = project.name == 'neoforge'
+            def target = new File(dest, "com/github/tranforcpp/${project.name}/TranforForge.java")
+            target.parentFile.mkdirs()
+            def replacements = [LOADER: project.name, FML: neo ? 'net.neoforged.fml' : 'net.minecraftforge.fml', EVENTBUS: neo ? 'net.neoforged.bus.api' : 'net.minecraftforge.eventbus.api', ROOT: neo ? 'net.neoforged.neoforge' : 'net.minecraftforge', BUS: neo ? 'net.neoforged.neoforge.common.NeoForge' : 'net.minecraftforge.common.MinecraftForge', LEVEL: 'level']
+            def source = file('../forge/src/main/templates/TranforForge.java').getText('UTF-8')
+            replacements.each { key, value -> source = source.replace("@${key}@", value) }
+            target.setText(source, 'UTF-8')
+        }
+    }
+}
+sourceSets.main.java.srcDirs '../../core/src/main/java', '../minecraft/src/main/java', layout.buildDirectory.dir('generated/adapter')
+compileJava.dependsOn generate
+java.toolchain.languageVersion = JavaLanguageVersion.of(java_version as int)
+tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8' }
+base.archivesName = "tranforcpp-${project.name}-${minecraft_version}"
+processResources {
+    def properties = [version: project.version, minecraft_version: minecraft_version, loader_version: loader_version, java_version: java_version]
+    inputs.properties properties
+    filesMatching(['fabric.mod.json', 'META-INF/*.toml']) { expand properties }
+    from('../../tranforcpp_api.h')
+}
+jar { from('../../LICENSE') }
