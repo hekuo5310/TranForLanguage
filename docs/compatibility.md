@@ -11,7 +11,7 @@
 
 `compatibility/spigot-versions.json` 包含 68 个 Spigot API 编译目标，`compatibility/versions.json` 包含 58 个加载器/游戏构建组合。不存在官方加载器或 API 的版本不会虚构构建号。Spigot 1.8 之前、测试版、快照版和未来版本不在已建立的矩阵内，不能把“全版本目标”表述为每个历史版本已经实测。
 
-Spigot 发行 JAR 按最旧的 1.8 API 编译、输出 Java 8 字节码，移除 Paper 专属入口、消息方法和插件元数据方法。声明 `api-version: '1.13'`，让现代 Spigot 使用现代材质名称，避免事件参数被转换为 `LEGACY_*`；旧版 Bukkit 忽略该元数据字段。Gson / Adventure 被打包并重定位，避免依赖服务端自带库版本。不存在的新版 Bukkit 事件通过可选注册处理。Folia 的区域线程模型尚未实现，移除之前没有验证依据的 `folia-supported` 声明。
+Spigot 发行 JAR 按最旧的 1.8 API 编译、输出 Java 8 字节码，移除 Paper 专属入口、消息方法和插件元数据方法。声明 `api-version: '1.13'` 以避免现代服务端将材质转换为 `LEGACY_*`；旧版 Spigot 会忽略这个当时尚不存在的描述字段，基线 1.8 的描述文件解析测试验证该行为。Gson / Adventure 被打包并重定位，避免依赖服务端自带库版本。不存在的新版 Bukkit 事件通过可选注册处理。Folia 的区域线程模型尚未实现，移除之前没有验证依据的 `folia-supported` 声明。
 
 模组按精确游戏版本写入元数据，并声明构建时选用的最低加载器版本，使用官方映射并由加载器工具链处理重映射。不能把一个版本的 JAR 改宽版本范围后分发给全部版本。1.20–1.20.4 游戏使用 Java 17，1.20.5–1.21.11 使用 Java 21，26.x 使用 Java 25；Gradle 8 工具链在 JDK 21 上运行，Gradle 9 工具链在 JDK 25 上运行（包括 Fabric 1.21.11 的新重映射工具链）。
 

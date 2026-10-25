@@ -9,9 +9,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.*;
 import java.util.concurrent.*;
-import java.util.logging.Handler;
-import java.util.logging.LogRecord;
-import java.util.logging.Logger;
+import java.util.logging.*;
 import static org.junit.Assert.*;
 
 public class ProgramRuntimeTest {
@@ -84,6 +82,32 @@ public class ProgramRuntimeTest {
         runtime.reload().get(5, TimeUnit.SECONDS); await(() -> !platform.tasks.isEmpty());
         platform.tasks.remove().run();
     }
+    @Test public void saturatedQueueSummarizesDropsWithoutLoggingEachEvent() throws Exception {
+        write("program.json", "{\"language\":\"process\",\"command\":[\"python3\",\"-u\",\"main.py\"]}");
+        write("main.py", "import json,time\nprint(json.dumps({'action':'console','message':'ready'}),flush=True)\ntime.sleep(30)\n");
+        List<String> warnings = Collections.synchronizedList(new ArrayList<>());
+        Handler capture = new Handler() {
+            public void publish(LogRecord record) {
+                if (record.getMessage().startsWith("Program event queue full")) warnings.add(record.getMessage());
+            }
+            public void flush() {}
+            public void close() {}
+        };
+        platform.logger().addHandler(capture);
+        try {
+            runtime.reload().get(5, TimeUnit.SECONDS);
+            await(() -> !platform.tasks.isEmpty());
+            char[] data = new char[4096]; Arrays.fill(data, 'x');
+            String payload = new String(data);
+            long start = System.nanoTime();
+            for (int i = 0; i < 5000; i++) runtime.sendEvent("PlayerMove", payload);
+            long allowed = 1 + (System.nanoTime() - start) / TimeUnit.SECONDS.toNanos(5);
+            assertFalse("The non-reading child must cause backpressure", warnings.isEmpty());
+            assertTrue("Overflow warnings must be rate limited", warnings.size() <= allowed);
+            runtime.close();
+            assertTrue("Shutdown may emit one final drop summary", warnings.size() <= allowed + 1);
+        } finally { platform.logger().removeHandler(capture); }
+    }
     @Test public void fullQueueWarningsAreRateLimitedAcrossThreadsAndResetOnReload() throws Exception {
         write("program.json", "{\"language\":\"process\",\"command\":[\"python3\",\"-u\",\"main.py\"]}");
         // Keep stdin blocked so the bounded queue must discard excess events.
@@ -91,7 +115,7 @@ public class ProgramRuntimeTest {
         List<Long> warnings = new CopyOnWriteArrayList<>();
         Handler handler = new Handler() {
             public void publish(LogRecord record) {
-                if (record.getMessage().startsWith("Program event queue full:")) warnings.add(System.nanoTime());
+                if (record.getMessage().startsWith("Program event queue full")) warnings.add(System.nanoTime());
             }
             public void flush() {}
             public void close() {}
@@ -113,9 +137,11 @@ public class ProgramRuntimeTest {
             await(() -> { runtime.sendEvent("still full"); return warnings.size() == 2; });
             assertTrue(warnings.get(1) - overflowStarted >= TimeUnit.SECONDS.toNanos(5));
             runtime.reload().get(5, TimeUnit.SECONDS);
+            int afterReload = warnings.size();
+            assertTrue("Reload may flush one final drop summary", afterReload >= 2 && afterReload <= 3);
             runtime.sendEvent("blocked", new String(large));
             for (int i = 0; i < 3000; i++) runtime.sendEvent("overflow");
-            assertEquals("New sessions should warn immediately", 3, warnings.size());
+            assertEquals("New sessions should warn immediately", afterReload + 1, warnings.size());
         } finally {
             callers.shutdownNow();
             logger.removeHandler(handler);
@@ -123,11 +149,12 @@ public class ProgramRuntimeTest {
     }
     static class FakePlatform implements Platform {
         final File dir;
+        final Logger log = Logger.getLogger("test");
         final BlockingQueue<Runnable> tasks = new LinkedBlockingQueue<>();
         String command, message;
         FakePlatform(File dir) { this.dir = dir; }
         public File directory() { return dir; }
-        public Logger logger() { return Logger.getLogger("test"); }
+        public Logger logger() { return log; }
         public void execute(Runnable action) { tasks.add(action); }
         public void broadcast(String text) { message = text; }
         public void sendMessage(String player, String text) { message = text; }

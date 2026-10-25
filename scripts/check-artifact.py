@@ -27,6 +27,7 @@ with zipfile.ZipFile(files[0]) as jar:
         descriptor = jar.read('plugin.yml').decode()
         assert 'main: com.github.tranforcpp.TranforCPlusPlus' in descriptor
         assert 'version: \'1.2.0\'' in descriptor
+        assert "api-version: '1.13'" in descriptor
         assert 'paper-plugin.yml' not in names
         assert not any(name.startswith('com/google/gson/') for name in names)
     else:
@@ -45,6 +46,13 @@ with zipfile.ZipFile(files[0]) as jar:
             path = 'META-INF/neoforge.mods.toml' if loader == 'neoforge' else 'META-INF/mods.toml'
             descriptor = tomllib.loads(jar.read(path).decode())
             assert descriptor['mods'][0]['version'] == '1.2.0'
+            if loader == 'neoforge':
+                old_fml = minecraft == '1.21' or minecraft in ['1.21.1', '1.21.2', '1.21.3', '1.21.4']
+                if old_fml:
+                    assert descriptor['modLoader'] == 'javafml'
+                    assert descriptor['loaderVersion'] == '[1,)'
+                else:
+                    assert 'modLoader' not in descriptor and 'loaderVersion' not in descriptor
             dependency = next(d for d in descriptor['dependencies']['tranforcpp'] if d['modId'] == 'minecraft')
             assert dependency['versionRange'] == f'[{minecraft}]'
             assert f'com/github/tranforcpp/{loader}/TranforForge.class' in names

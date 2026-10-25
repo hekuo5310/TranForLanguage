@@ -2,7 +2,10 @@ plugins { id 'net.neoforged.moddev' version '2.0.148' }
 apply from: '../../scripts/generate-adapter.gradle'
 repositories { mavenCentral() }
 neoForge { version = loader_version }
+// Follow the official MDK metadata before and after built-in language loading.
+def legacyJavaFml = minecraft_version == '1.21' || minecraft_version.matches('1\\.21\\.[1-4]')
+def javaFmlMetadata = legacyJavaFml ? 'modLoader="javafml"\nloaderVersion="[1,)"' : ''
 processResources { from('src/main/templates/neoforge.mods.toml') {
     into 'META-INF'
-    expand version: project.version, minecraft_version: minecraft_version, loader_version: loader_version
+    expand version: project.version, minecraft_version: minecraft_version, loader_version: loader_version, javafml_metadata: javaFmlMetadata
 } }
