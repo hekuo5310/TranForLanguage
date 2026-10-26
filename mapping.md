@@ -1,3 +1,5 @@
+> 本指南仅针对 Bukkit/Spigot 的 Java 事件接入。Fabric、Forge、NeoForge 请参见 [兼容说明](docs/compatibility.md)，语言无关协议见 [协议说明](docs/protocol.md)。
+
 # Spigot API 映射到 C++
 
 本文档说明如何将 Spigot 事件和功能映射到 C++ API。[其他api也可以,请参考本文档]: # 

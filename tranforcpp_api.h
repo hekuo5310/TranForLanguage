@@ -6,6 +6,7 @@
 #include <sstream>
 #include <thread>
 #include <atomic>
+#include <mutex>
 
 extern "C" {
 
@@ -35,41 +36,63 @@ void onHangingBreak(const char* entityType, const char* cause);
 
 }
 
-void broadcast(const char* message);
+inline void broadcast(const char* message);
 void sendMsg(const char* player, const char* message);
-void console(const char* message);
-void dispatchCommand(const char* command, bool sync = false);
+inline void console(const char* message);
+inline void dispatchCommand(const char* command, bool sync = false);
 
 namespace tranforcpp {
-    std::atomic<bool> running(true);
+    inline std::atomic<bool> running(true);
+    inline std::mutex output_mutex;
+    inline std::string escapeJson(const char* value) {
+        std::ostringstream out;
+        for (const unsigned char c : std::string(value ? value : "")) {
+            switch (c) {
+                case '"': out << "\\\""; break;
+                case '\\': out << "\\\\"; break;
+                case '\n': out << "\\n"; break;
+                case '\r': out << "\\r"; break;
+                case '\t': out << "\\t"; break;
+                default:
+                    if (c < 0x20) {
+                        const char* hex = "0123456789abcdef";
+                        out << "\\u00" << hex[c >> 4] << hex[c & 15];
+                    } else out << c;
+            }
+        }
+        return out.str();
+    }
 
     inline void sendMessage(const std::string& action, const std::string& msg) {
+        std::lock_guard<std::mutex> lock(output_mutex);
         std::cout << msg << std::endl;
     }
 }
 
-void broadcast(const char* message) {
+inline void broadcast(const char* message) {
     std::ostringstream oss;
-    oss << R"({"action":"broadcast","message":")" << message << R"("})";
+    oss << R"({"action":"broadcast","message":")" << tranforcpp::escapeJson(message) << R"("})";
     tranforcpp::sendMessage("broadcast", oss.str());
 }
 
-void sendMessage(const char* player, const char* message) {
+inline void sendMessage(const char* player, const char* message) {
     std::ostringstream oss;
-    oss << R"({"action":"sendMessage","player":")" << player
-        << R"(","message":")" << message << R"("})";
+    oss << R"({"action":"sendMessage","player":")" << tranforcpp::escapeJson(player)
+        << R"(","message":")" << tranforcpp::escapeJson(message) << R"("})";
     tranforcpp::sendMessage("sendMessage", oss.str());
 }
 
-void console(const char* message) {
+inline void sendMsg(const char* player, const char* message) { sendMessage(player, message); }
+
+inline void console(const char* message) {
     std::ostringstream oss;
-    oss << R"({"action":"console","message":")" << message << R"("})";
+    oss << R"({"action":"console","message":")" << tranforcpp::escapeJson(message) << R"("})";
     tranforcpp::sendMessage("console", oss.str());
 }
 
-void dispatchCommand(const char* command, bool sync) {
+inline void dispatchCommand(const char* command, bool sync) {
     std::ostringstream oss;
-    oss << R"({"action":"dispatchCommand","command":")" << command << R"(","sync":)" << (sync ? "true" : "false") << R"(})";
+    oss << R"({"action":"executeCommand","command":")" << tranforcpp::escapeJson(command) << R"(","sync":)" << (sync ? "true" : "false") << R"(})";
     tranforcpp::sendMessage("dispatchCommand", oss.str());
 }
 

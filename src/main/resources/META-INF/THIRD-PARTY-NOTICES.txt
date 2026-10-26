@@ -1,0 +1,29 @@
+Bundled dependencies in the Spigot distribution
+
+These dependencies are bundled in the Spigot JAR. Gson and Kyori namespaces
+are relocated to com.github.tranforcpp.internal.
+The project license does not replace their respective licenses.
+
+Adventure 4.17.0 (api, key, text-minimessage, text-serializer-legacy)
+Copyright (c) 2017-2025 KyoriPowered
+https://github.com/PaperMC/adventure
+MIT License: META-INF/licenses/adventure.txt
+
+Examination 1.3.0 (api, string)
+Copyright (c) 2018-2019 KyoriPowered
+https://github.com/KyoriPowered/examination
+MIT License: META-INF/licenses/examination.txt
+
+Gson 2.10.1
+Copyright (C) 2008 Google Inc.
+https://github.com/google/gson
+Apache License 2.0: META-INF/licenses/gson.txt
+
+JetBrains Annotations 24.1.0
+Copyright 2000-2021 JetBrains s.r.o.
+https://github.com/JetBrains/java-annotations
+Apache License 2.0: META-INF/licenses/annotations.txt
+
+License texts are reproduced from the respective upstream repositories.
+Minecraft, Bukkit/Spigot, Fabric, Forge, NeoForge and their APIs are not bundled
+as library classes in this distribution.

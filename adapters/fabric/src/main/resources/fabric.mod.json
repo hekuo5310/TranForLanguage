@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "id": "tranforcpp",
+  "version": "${version}",
+  "name": "TranforC++",
+  "description": "Language-neutral program bridge for Minecraft servers",
+  "environment": "server",
+  "entrypoints": {"main": ["com.github.tranforcpp.fabric.TranforFabric"]},
+  "depends": {"fabricloader": ">=${loader_version}", "fabric-api": "*", "minecraft": "${minecraft_version}", "java": ">=${java_version}"},
+  "license": "Apache-2.0"
+}

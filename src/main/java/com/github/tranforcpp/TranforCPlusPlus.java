@@ -69,41 +69,10 @@ public class TranforCPlusPlus extends JavaPlugin {
     }
     
     private void registerTranforCommand() {
-        try {
-            Field commandMapField = getServer().getClass().getDeclaredField("commandMap");
-            commandMapField.setAccessible(true);
-            CommandMap commandMap = (CommandMap) commandMapField.get(getServer());
-            
-            Command tranforCommand = createTranforCommand();
-            commandMap.register("tranforcpp", tranforCommand);
-        } catch (Exception e) {
-            getLogger().warning("命令注册失败了!!!bro!!!");
-        }
-    }
-    
-    private Command createTranforCommand() {
-        TranforCommand commandExecutor = new TranforCommand();
-        TranforTabCompleter tabCompleter = new TranforTabCompleter();
-        
-        Command tranforCommand = new Command("tranforcpp") {
-            @Override
-            public boolean execute(org.bukkit.command.CommandSender sender, String label, String[] args) {
-                return commandExecutor.onCommand(sender, this, label, args);
-            }
-            
-            @Override
-            public java.util.List<String> tabComplete(org.bukkit.command.CommandSender sender, String alias, String[] args) {
-                java.util.List<String> result = tabCompleter.onTabComplete(sender, this, alias, args);
-                return result != null ? result : new java.util.ArrayList<>();
-            }
-        };
-        
-        tranforCommand.setDescription("Manage TranforC++ plugin");
-        tranforCommand.setUsage("/<command> [reload|version]");
-        tranforCommand.setPermission("tranforcpp.use");
-        tranforCommand.setAliases(java.util.Collections.singletonList("cpp"));
-        
-        return tranforCommand;
+        org.bukkit.command.PluginCommand command = getCommand("tranforcpp");
+        if (command == null) throw new IllegalStateException("Missing tranforcpp command in plugin.yml");
+        command.setExecutor(new TranforCommand());
+        command.setTabCompleter(new TranforTabCompleter());
     }
 
     @Override

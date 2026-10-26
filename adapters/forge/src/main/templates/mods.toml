@@ -1,0 +1,20 @@
+modLoader="javafml"
+loaderVersion="[46,)"
+license="Apache-2.0"
+[[mods]]
+modId="tranforcpp"
+version="${version}"
+displayName="TranforC++"
+description='''Language-neutral program bridge for Minecraft servers'''
+[[dependencies.tranforcpp]]
+modId="minecraft"
+mandatory=true
+versionRange="[${minecraft_version}]"
+ordering="NONE"
+side="SERVER"
+[[dependencies.tranforcpp]]
+modId="forge"
+mandatory=true
+versionRange="[${loader_version},)"
+ordering="NONE"
+side="SERVER"
