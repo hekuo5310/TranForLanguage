@@ -1,5 +1,5 @@
 // Shared compilation inputs; all game references are compiled by the loader toolchain.
-version = '1.2.0'
+version = new groovy.xml.XmlSlurper().parse(file('../../pom.xml')).version.text()
 group = 'com.github.tranforcpp'
 def mc = minecraft_version
 boolean forgeBus7 = project.name == 'forge' && mc.startsWith('1.21.') && (mc.split('\\.')[2] as int) >= 6

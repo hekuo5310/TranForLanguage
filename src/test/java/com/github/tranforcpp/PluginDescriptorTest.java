@@ -20,7 +20,9 @@ public class PluginDescriptorTest {
         assertTrue(new String(metadata, StandardCharsets.UTF_8).contains("api-version: '1.13'"));
         PluginDescriptionFile description = new PluginDescriptionFile(new ByteArrayInputStream(metadata));
         assertEquals("TranforCPlusPlus", description.getName());
-        assertEquals("1.2.0", description.getVersion());
+        String projectVersion = System.getProperty("project.version");
+        assertNotNull("Surefire must supply project.version", projectVersion);
+        assertEquals(projectVersion, description.getVersion());
         assertEquals("com.github.tranforcpp.TranforCPlusPlus", description.getMain());
         assertTrue(description.getCommands().containsKey("tranforcpp"));
     }
