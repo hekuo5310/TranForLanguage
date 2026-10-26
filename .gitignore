@@ -4,3 +4,5 @@
 **/run/
 *.log
 __pycache__/
+
+.tranforcpp/

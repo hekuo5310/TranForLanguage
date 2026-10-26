@@ -6,10 +6,12 @@
 
 - Spigot 默认继续使用 `plugins/C++ Plugins/`，兼容现有插件。
 - Fabric / Forge / NeoForge 使用 `config/tranforcpp/programs/`。
-- 没有 `program.json` 时使用 `cpp` 适配器，编译目录下所有 `.cpp` 为一个进程，保留原有行为。
+- 没有显式 `language` 时识别目录中的 `.cpp`、`.c`、`main.py`、`main.rs`；同时出现多种语言会要求在 `program.json` 指定语言。空目录不启动进程。
 - 一个目录对应一个程序进程。多个 `.cpp` 仍属于一个程序，不会变成相互隔离的插件；目前不支持同一目录同时运行多个语言进程。
 
-Python 配置示例（同样适用于 Node.js、Java、预编译 Rust/Go 等）：
+内置适配器为 `cpp`、`c`、`python`、`rust`。Python / Rust 支持 `entrypoint`（默认 `main.py` / `main.rs`），无需自己构造解释器或编译命令；SDK 用法见 [README](../README.md)。C/C++ 的 API 在编译时自动注入，原有 `tranforcpp_api.h` include 继续兼容。
+
+通用 `process` 适配器仍可运行 Node.js、Java、自定义 Cargo 工程的预编译产物等：
 
 ```json
 {
@@ -21,7 +23,7 @@ Python 配置示例（同样适用于 Node.js、Java、预编译 Rust/Go 等）�
 
 `command` 必须是字符串数组，直接传给 `ProcessBuilder`，不拼接 shell 命令。可执行文件需要已安装或提供绝对路径。程序必须实现下述协议；普通命令行程序不会自动成为 Minecraft 插件。标准输出专用于协议，诊断写到标准错误，每条消息后刷新输出。
 
-C++ 适配器使用 `g++ -std=c++17 -pthread`。可通过 JVM 参数 `-Dtranforcpp.compiler=/path/to/clang++` 切换兼容编译器；不再错误地声称 GCC 参数可用于 MSVC。编译日志在程序目录 `compile.log`。
+C 适配器使用 `gcc -std=c11 -pthread`，C++ 适配器使用 `g++ -std=c++17 -pthread`，均由 `-include` 注入内置 SDK。Python SDK 的 `on(event)` / `run()` 和 Rust SDK 的 `run(handler)` 解析事件并在处理 `shutdown` 后退出；C/C++ 仍自行读取与分派事件。Rust 通过自动维护的 Cargo 工程引入内置 `tranforcpp` crate，首次下载 serde 依赖，保留 Cargo.lock 和 target 缓存；不覆盖用户源码或用户 Cargo.toml。可通过 JVM 参数 `-Dtranforcpp.compiler=/path/to/clang++` 切换兼容编译器；不再错误地声称 GCC 参数可用于 MSVC。编译日志在程序目录 `compile.log`。
 
 ## 服务端 → 程序
 

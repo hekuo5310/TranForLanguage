@@ -23,6 +23,14 @@ jobs:
           java-version: '25'
           cache: maven
       - run: python3 scripts/test-versions.py
+      - name: Verify language toolchains for integration tests
+        if: matrix.api == '1.8'
+        run: |
+          gcc --version
+          g++ --version
+          python3 --version
+          rustc --version
+          cargo --version
       - name: Compile against exact Spigot API
         run: mvn -B -ntp verify -Dspigot.version=${{ matrix.api }}-R0.1-SNAPSHOT -DskipTests=${{ matrix.api != '1.8' }}
       - name: Verify plugin metadata and Java 8 artifact

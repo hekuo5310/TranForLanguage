@@ -49,5 +49,6 @@ processResources {
     inputs.properties properties
     filesMatching(['fabric.mod.json', 'META-INF/*.toml']) { expand properties }
     from('../../tranforcpp_api.h')
+    from('../../core/src/main/resources')
 }
 jar { from('../../LICENSE') }
