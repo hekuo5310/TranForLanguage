@@ -11,7 +11,7 @@ import java.util.logging.Logger;
 public final class MinecraftPlatform implements Platform {
     private final MinecraftServer server;
     private final File directory;
-    private final Logger logger = Logger.getLogger("TranforC++");
+    private final Logger logger = Logger.getLogger("TranForLanguage");
     public MinecraftPlatform(MinecraftServer server, File directory) { this.server = server; this.directory = directory; }
     public File directory() { return directory; }
     public Logger logger() { return logger; }

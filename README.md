@@ -1,15 +1,15 @@
-# TranforC++
+# TranForLanguage
 
-让 Minecraft 服务端通过进程协议调用程序，默认保留现有 C++ 插件用法，并为其他语言提供统一扩展入口。
+让 Minecraft 服务端通过统一进程协议运行 C、C++、Python 和 Rust 程序。
 
 ## 平台与构建
 
 | 产物 | 目标 | 构建工具 |
 | --- | --- | --- |
-| `tranforcpp-spigot-1.2.0.jar` | Spigot / 常规 Paper 分支，官方 API 1.8–26.3 | Maven |
-| `tranforcpp-fabric-<游戏版本>-1.2.0.jar` | Fabric 1.20–26.3，逐版本构建 | Gradle + Loom |
-| `tranforcpp-neoforge-<游戏版本>-1.2.0.jar` | NeoForge 1.21–26.3，逐版本构建 | Gradle + ModDevGradle |
-| `tranforcpp-forge-<游戏版本>-1.2.0.jar` | Forge 1.20.x–1.21.x，按官方已发布版本构建 | Gradle + ForgeGradle |
+| `tranforlanguage-spigot-1.2.0.jar` | Spigot / 常规 Paper 分支，官方 API 1.8–26.3 | Maven |
+| `tranforlanguage-fabric-<游戏版本>-1.2.0.jar` | Fabric 1.20–26.3，逐版本构建 | Gradle + Loom |
+| `tranforlanguage-neoforge-<游戏版本>-1.2.0.jar` | NeoForge 1.21–26.3，逐版本构建 | Gradle + ModDevGradle |
+| `tranforlanguage-forge-<游戏版本>-1.2.0.jar` | Forge 1.20.x–1.21.x，按官方已发布版本构建 | Gradle + ForgeGradle |
 
 目标范围与运行实测是不同的检查。[兼容说明](docs/compatibility.md)列出版本矩阵、尚未接入的模组事件和验证边界。Spigot 1.8 之前及 Folia 尚未建立兼容保障。
 
@@ -21,7 +21,7 @@
 mvn clean verify
 ```
 
-安装 `target/tranforcpp-spigot-1.2.0.jar` 到 `plugins/`。不再为同一插件维护 Maven / Gradle 两份构建。
+安装 `target/tranforlanguage-spigot-1.2.0.jar` 到 `plugins/`。不再为同一插件维护 Maven / Gradle 两份构建。
 
 ### Fabric / Forge / NeoForge
 
@@ -108,12 +108,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## 命令
 
-- `/tranforcpp reload`：后台准备并重启程序；失败会明确反馈。
-- `/tranforcpp version`：显示桥接版本。
-- Spigot 还保留 `/cpp`、`version` 的 `ver` 别名与 `tranforcpp.use/reload/version` 权限节点。
+- `/tranforlanguage reload`：后台准备并重启程序；失败会明确反馈。
+- `/tranforlanguage version`：显示桥接版本。
+- Spigot 还保留 `/tranforcpp`、`/cpp`、`version` 的 `ver` 别名与 `tranforlanguage.use/reload/version` 权限节点（兼容旧 `tranforcpp.*` 节点）。
 - 模组命令要求操作员级别 2。
 
 程序可请求广播、私信、控制台日志和控制台命令，所有游戏操作通过服务器线程执行。Spigot 保留 MiniMessage 格式，模组端当前使用纯文本。
+
+## 名称迁移
+
+项目显示名、插件描述和发行文件名使用 **TranForLanguage**，主命令为 `/tranforlanguage`；旧 `/tranforcpp`（含模组端）和 Spigot `/cpp` 仍可用。新 Spigot 权限节点通过子权限兼容旧节点，原有授权仍生效。升级时替换旧 JAR，避免同时安装两份。
+
+其他 Bukkit 插件若在 `depend` / `softdepend` 中声明了旧插件名 `TranforCPlusPlus`，需改为 `TranForLanguage`。
+
+GitHub 仓库地址、Java 包名/入口类、加载器 mod ID `tranforcpp`、Python 模块和 Rust crate `tranforcpp`、原生 SDK 名称、JVM 参数前缀及程序目录保持兼容，不需要迁移源码、配置或现有程序缓存。
 
 ## 开发
 

@@ -23,7 +23,7 @@ public final class TranforFabric implements ModInitializer {
     public void onInitialize() {
         ServerLifecycleEvents.SERVER_STARTED.register(server -> {
             runtime = new ProgramRuntime(new MinecraftPlatform(server, FabricLoader.getInstance().getGameDir().resolve("config/tranforcpp/programs").toFile()));
-            runtime.reload().whenComplete((v, error) -> { if (error != null) java.util.logging.Logger.getLogger("TranforC++").severe(error.toString()); });
+            runtime.reload().whenComplete((v, error) -> { if (error != null) java.util.logging.Logger.getLogger("TranForLanguage").severe(error.toString()); });
         });
         ServerLifecycleEvents.SERVER_STOPPING.register(server -> { if (runtime != null) { runtime.close(); runtime = null; } });
         CommandRegistrationCallback.EVENT.register((dispatcher, access, environment) -> BridgeCommands.register(dispatcher, () -> runtime));

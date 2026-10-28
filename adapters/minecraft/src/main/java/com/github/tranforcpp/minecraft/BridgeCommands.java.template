@@ -8,10 +8,10 @@ import net.minecraft.network.chat.Component;
 
 public final class BridgeCommands {
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher, java.util.function.Supplier<ProgramRuntime> runtime) {
-        dispatcher.register(Commands.literal("tranforcpp")
+        com.mojang.brigadier.tree.LiteralCommandNode<CommandSourceStack> command = dispatcher.register(Commands.literal("tranforlanguage")
             .requires(@PERMISSION@)
             .then(Commands.literal("version").executes(ctx -> {
-                ctx.getSource().sendSuccess(() -> Component.literal("TranforC++ 1.2.0"), false); return 1;
+                ctx.getSource().sendSuccess(() -> Component.literal("TranForLanguage 1.2.0"), false); return 1;
             }))
             .then(Commands.literal("reload").executes(ctx -> {
                 ProgramRuntime active = runtime.get();
@@ -23,5 +23,6 @@ public final class BridgeCommands {
                 }));
                 return 1;
             })));
+        dispatcher.register(Commands.literal("tranforcpp").requires(@PERMISSION@).redirect(command));
     }
 }

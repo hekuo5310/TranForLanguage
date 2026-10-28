@@ -10,7 +10,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 /**
  * 本地事件监听器示例
  * <p>
- * 演示如何监听TranforC++插件的本地事件。
+ * 演示如何监听TranForLanguage插件的本地事件。
  * 展示了插件的事件处理能力。
  * <p>
  * 示例功能：
@@ -23,7 +23,7 @@ public class DualEventListenerExample extends JavaPlugin implements Listener {
     public void onEnable() {
         Bukkit.getPluginManager().registerEvents(this, this);
         
-        getLogger().info("TranforC++ 本地事件监听示例已启用");
+        getLogger().info("TranForLanguage 本地事件监听示例已启用");
     }
     
     @EventHandler
