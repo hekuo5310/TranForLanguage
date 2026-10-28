@@ -75,8 +75,8 @@ public class PluginListListener implements Listener {
         if (cppFiles.isEmpty()) {
             sender.sendMessage(Messages.format("<white>[<aqua>TranForLanguage<white>]<red>未发现 C++ 源文件；其他语言程序请查看 program.json 配置。"));
         } else {
-            sender.sendMessage(Messages.format("<aqua>□ <white>C+ plugins (<white>" + cppFiles.size() + "<white>):"));
-            sender.sendMessage(Messages.format("<aqua>TranForLanguage Plugins (<aqua>" + cppFiles.size() + "<aqua>):"));
+            sender.sendMessage(Messages.format("<aqua>□ <white>C++ 源文件 (<white>" + cppFiles.size() + "<white>):"));
+            sender.sendMessage(Messages.format("<aqua>TranForLanguage C++ 源文件 (<aqua>" + cppFiles.size() + "<aqua>):"));
             
             StringBuilder pluginNames = new StringBuilder();
             for (int i = 0; i < cppFiles.size(); i++) {
