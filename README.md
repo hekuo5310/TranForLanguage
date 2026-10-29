@@ -41,7 +41,7 @@ gradle -p adapters/forge clean build
 
 构建还需要目标游戏的 Java toolchain（17 / 21 / 25），见[版本锁文件](compatibility/versions.json)中的 `java` 与 `gradle` 字段。CI 自动安装这些 JDK 和正确的 Gradle。产物在相应 `adapters/<加载器>/build/libs/`，仅安装与服务器加载器及 Minecraft 版本完全一致的发行 JAR 到 `mods/`。Fabric 额外安装对应游戏版本的 Fabric API。
 
-也可从 GitHub Actions 下载按平台/游戏版本区分的产物。常规版本通过与项目版本一致的 `v*` 标签发布；本次 2.0.0 由带 `[release-v2.0.0]` 标记的 main 合并提交在完整构建通过后自动创建标签并发布，不覆盖指向其他提交的标签。
+也可从 GitHub Actions 下载按平台/游戏版本区分的产物。常规版本通过与项目版本一致的 `v*` 标签发布；本次 2.0.0 由 main 分支上带 `[release-v2.0.0]` 标记的提交在完整构建通过后自动创建标签并发布，不覆盖指向其他提交的标签。
 
 ## 安装程序
 
