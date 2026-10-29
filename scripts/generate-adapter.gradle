@@ -43,11 +43,12 @@ sourceSets.main.java.srcDirs '../../core/src/main/java', '../minecraft/src/main/
 compileJava.dependsOn generate
 java.toolchain.languageVersion = JavaLanguageVersion.of(java_version as int)
 tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8' }
-base.archivesName = "tranforcpp-${project.name}-${minecraft_version}"
+base.archivesName = "tranforlanguage-${project.name}-${minecraft_version}"
 processResources {
     def properties = [version: project.version, minecraft_version: minecraft_version, loader_version: loader_version, java_version: java_version]
     inputs.properties properties
     filesMatching(['fabric.mod.json', 'META-INF/*.toml']) { expand properties }
     from('../../tranforcpp_api.h')
+    from('../../core/src/main/resources')
 }
 jar { from('../../LICENSE') }

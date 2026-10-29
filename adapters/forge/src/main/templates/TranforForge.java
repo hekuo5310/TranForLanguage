@@ -27,7 +27,7 @@ public final class TranforForge {
     private void emit(String name, Object... args) { ProgramRuntime r = runtime; if (r != null) r.sendEvent(name, args); }
     @SubscribeEvent public void start(ServerStartedEvent event) {
         runtime = new ProgramRuntime(new MinecraftPlatform(event.getServer(), new File("config/tranforcpp/programs")));
-        runtime.reload().whenComplete((v, error) -> { if (error != null) java.util.logging.Logger.getLogger("TranforC++").severe(error.toString()); });
+        runtime.reload().whenComplete((v, error) -> { if (error != null) java.util.logging.Logger.getLogger("TranForLanguage").severe(error.toString()); });
     }
     @SubscribeEvent public void stop(ServerStoppingEvent event) { if (runtime != null) { runtime.close(); runtime = null; } }
     @SubscribeEvent public void commands(RegisterCommandsEvent event) { BridgeCommands.register(event.getDispatcher(), () -> runtime); }

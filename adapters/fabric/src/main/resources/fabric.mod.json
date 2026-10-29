@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "tranforcpp",
   "version": "${version}",
-  "name": "TranforC++",
+  "name": "TranForLanguage",
   "description": "Language-neutral program bridge for Minecraft servers",
   "environment": "server",
   "entrypoints": {"main": ["com.github.tranforcpp.fabric.TranforFabric"]},

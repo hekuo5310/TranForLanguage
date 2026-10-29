@@ -14,7 +14,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 import java.lang.reflect.Field;
 
 /**
- * TranforC++ 主插件类
+ * TranForLanguage 主插件类
  * <p>
  * 这是一个允许在Minecraft服务器上运行C++代码的插件。
  * 它提供了完整的C++插件生态系统，包括编译、执行和事件处理功能。
@@ -42,7 +42,7 @@ public class TranforCPlusPlus extends JavaPlugin {
     @Override
     public void onEnable() {
         instance = this;
-                getLogger().info(AnsiColorUtils.colorize("正在初始化TranforC++模块...", AnsiColorUtils.COLOR_51));
+                getLogger().info(AnsiColorUtils.colorize("正在初始化TranForLanguage模块...", AnsiColorUtils.COLOR_51));
         // 注册主命令
         registerTranforCommand();
         
@@ -69,8 +69,8 @@ public class TranforCPlusPlus extends JavaPlugin {
     }
     
     private void registerTranforCommand() {
-        org.bukkit.command.PluginCommand command = getCommand("tranforcpp");
-        if (command == null) throw new IllegalStateException("Missing tranforcpp command in plugin.yml");
+        org.bukkit.command.PluginCommand command = getCommand("tranforlanguage");
+        if (command == null) throw new IllegalStateException("Missing tranforlanguage command in plugin.yml");
         command.setExecutor(new TranforCommand());
         command.setTabCompleter(new TranforTabCompleter());
     }
@@ -93,7 +93,7 @@ public class TranforCPlusPlus extends JavaPlugin {
         if (pluginListListener != null) {
             pluginListListener.shutdown();
         }
-        getLogger().info(AnsiColorUtils.colorize("TranforC++模块插件 已关闭!", AnsiColorUtils.RED));
+        getLogger().info(AnsiColorUtils.colorize("TranForLanguage模块插件 已关闭!", AnsiColorUtils.RED));
     }
 
     public static TranforCPlusPlus getInstance() {

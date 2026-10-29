@@ -1,4 +1,1 @@
-{
-  "language": "process",
-  "command": ["python3", "-X", "utf8", "-u", "main.py"]
-}
+{"protocol": 1, "language": "python", "entrypoint": "main.py"}

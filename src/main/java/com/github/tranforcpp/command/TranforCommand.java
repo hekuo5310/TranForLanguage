@@ -7,24 +7,24 @@ import org.bukkit.command.CommandSender;
 import com.github.tranforcpp.utils.Messages;
 
 /**
- * TranforC++主命令处理器
+ * TranForLanguage主命令处理器
  * <p> 
- * 处理/tranforcpp命令的各种子命令。
+ * 处理/tranforlanguage命令的各种子命令。
  * 支持插件重载、版本查询等功能。
  * <p>
  * 支持的子命令：
- * - reload: 重新加载C++插件
+ * - reload: 重新加载程序
  * - version/ver: 显示插件版本信息
  */
 public class TranforCommand implements CommandExecutor {
     
 
-    private static final String USAGE_MESSAGE = "<red>用法: /tranforcpp <reload|version|ver>";
+    private static final String USAGE_MESSAGE = "<red>用法: /tranforlanguage <reload|version|ver>";
     private static final String PERMISSION_DENIED = "<red>权限不足";
     private static final String RELOAD_START = "<yellow>正在重载...";
     private static final String RELOAD_COMPLETE = "<green>重载完成!";
-    private static final String VERSION_PREFIX = "<white>[<aqua>TranforC++<white>] <green>您当前服务器的模块版本为: <green>";
-    private static final String UNKNOWN_COMMAND = "<red>未知指令! 用法: /tranforcpp <reload|version|ver>";
+    private static final String VERSION_PREFIX = "<white>[<aqua>TranForLanguage<white>] <green>您当前服务器的模块版本为: <green>";
+    private static final String UNKNOWN_COMMAND = "<red>未知指令! 用法: /tranforlanguage <reload|version|ver>";
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {

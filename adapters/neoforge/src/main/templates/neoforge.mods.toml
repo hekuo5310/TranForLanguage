@@ -3,7 +3,7 @@ license="Apache-2.0"
 [[mods]]
 modId="tranforcpp"
 version="${version}"
-displayName="TranforC++"
+displayName="TranForLanguage"
 description='''Language-neutral program bridge for Minecraft servers'''
 [[dependencies.tranforcpp]]
 modId="minecraft"

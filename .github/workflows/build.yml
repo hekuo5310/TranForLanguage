@@ -23,15 +23,23 @@ jobs:
           java-version: '25'
           cache: maven
       - run: python3 scripts/test-versions.py
+      - name: Verify language toolchains for integration tests
+        if: matrix.api == '1.8'
+        run: |
+          gcc --version
+          g++ --version
+          python3 --version
+          rustc --version
+          cargo --version
       - name: Compile against exact Spigot API
         run: mvn -B -ntp verify -Dspigot.version=${{ matrix.api }}-R0.1-SNAPSHOT -DskipTests=${{ matrix.api != '1.8' }}
       - name: Verify plugin metadata and Java 8 artifact
-        run: python3 scripts/check-artifact.py spigot '${{ matrix.api }}' 8 'target/tranforcpp-spigot-*.jar'
+        run: python3 scripts/check-artifact.py spigot '${{ matrix.api }}' 8 'target/tranforlanguage-spigot-*.jar'
       - uses: actions/upload-artifact@v4
         if: matrix.api == '1.8'
         with:
-          name: tranforcpp-spigot
-          path: target/tranforcpp-spigot-*.jar
+          name: tranforlanguage-spigot
+          path: target/tranforlanguage-spigot-*.jar
           if-no-files-found: error
   targets:
     runs-on: ubuntu-latest
@@ -77,7 +85,7 @@ jobs:
         run: python3 scripts/check-artifact.py '${{ matrix.loader }}' '${{ matrix.minecraft }}' '${{ matrix.java }}' 'adapters/${{ matrix.loader }}/build/libs/*.jar'
       - uses: actions/upload-artifact@v4
         with:
-          name: tranforcpp-${{ matrix.loader }}-${{ matrix.minecraft }}
+          name: tranforlanguage-${{ matrix.loader }}-${{ matrix.minecraft }}
           path: |
             adapters/${{ matrix.loader }}/build/libs/*.jar
             !adapters/${{ matrix.loader }}/build/libs/*-sources.jar

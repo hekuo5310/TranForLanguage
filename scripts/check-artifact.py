@@ -18,6 +18,9 @@ assert len(files) == 1, f'Expected one distributable, got {files}'
 with zipfile.ZipFile(files[0]) as jar:
     names = set(jar.namelist())
     assert 'tranforcpp_api.h' in names, 'Missing C++ SDK resource'
+    for resource in ['c/tranforcpp.h', 'c/runtime.c', 'python/bootstrap.py', 'python/tranforcpp.py',
+                     'rust/Cargo.toml', 'rust/src/lib.rs']:
+        assert 'sdk/' + resource in names, 'Missing bundled SDK: ' + resource
     assert 'LICENSE' in names, 'Missing project license'
     assert 'com/github/tranforcpp/core/ProgramRuntime.class' in names
     assert 'com/github/tranforcpp/core/language/LanguageProvider.class' in names
@@ -29,6 +32,7 @@ with zipfile.ZipFile(files[0]) as jar:
             assert f'META-INF/licenses/{name}.txt' in names, f'Missing {name} license'
         assert 'META-INF/THIRD-PARTY-NOTICES.txt' in names
         descriptor = jar.read('plugin.yml').decode()
+        assert 'name: TranForLanguage' in descriptor
         assert 'main: com.github.tranforcpp.TranforCPlusPlus' in descriptor
         assert f"version: '{project_version}'" in descriptor
         assert "api-version: '1.13'" in descriptor
@@ -41,6 +45,7 @@ with zipfile.ZipFile(files[0]) as jar:
             descriptor = json.loads(jar.read('fabric.mod.json'))
             assert descriptor['depends']['minecraft'] == minecraft
             assert descriptor['version'] == project_version
+            assert descriptor['name'] == 'TranForLanguage'
             assert descriptor['environment'] == 'server'
             assert 'com/github/tranforcpp/fabric/TranforFabric.class' in names
             if not minecraft.startswith('26.'):
@@ -49,6 +54,7 @@ with zipfile.ZipFile(files[0]) as jar:
         else:
             path = 'META-INF/neoforge.mods.toml' if loader == 'neoforge' else 'META-INF/mods.toml'
             descriptor = tomllib.loads(jar.read(path).decode())
+            assert descriptor['mods'][0]['displayName'] == 'TranForLanguage'
             assert descriptor['mods'][0]['version'] == project_version
             if loader == 'neoforge':
                 old_fml = minecraft == '1.21' or minecraft in ['1.21.1', '1.21.2', '1.21.3', '1.21.4']
