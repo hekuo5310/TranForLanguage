@@ -133,11 +133,43 @@ public class ProgramManagerTest {
         await(() -> platform.messages.contains("healthy:still-running"));
         assertEquals(2, platform.messages.size());
     }
+    @Test public void nestedRootEntrypointIsNotStartedTwice() throws Exception {
+        write("scripts/main.py", "from tranforcpp import broadcast,run\nbroadcast('once')\nrun()\n");
+        for (String entry : new String[]{"scripts/main.py", "./scripts/../scripts/main.py"}) {
+            write("program.json", "{\"language\":\"python\",\"entrypoint\":\""+entry+"\"}");
+            manager.reload().get(10, TimeUnit.SECONDS);
+            assertEquals(1, manager.statuses().size());
+            assertEquals("@root", manager.statuses().get(0).id);
+            await(() -> platform.messages.contains("once"));
+            assertEquals(1, platform.messages.size()); platform.messages.clear();
+        }
+        try { manager.reload("scripts").get(5, TimeUnit.SECONDS); fail(); } catch (ExecutionException expected) {}
+    }
+    @Test public void invalidRootManifestDoesNotHideChildPrograms() throws Exception {
+        write("program.json", "{broken"); python("scripts", "");
+        try { manager.reload().get(10, TimeUnit.SECONDS); fail(); } catch (ExecutionException expected) {}
+        assertEquals(2, manager.statuses().size());
+        manager.sendEvent("PlayerJoin", "alive"); await(() -> platform.messages.contains("scripts:alive"));
+    }
+    @Test public void childInfoAndWarningsReachParentLoggerOverrideWithVisibleId() throws Exception {
+        manager.close();
+        List<LogRecord> forwarded = new CopyOnWriteArrayList<>();
+        Logger parent = new Logger("forward-parent", null) {
+            @Override public void log(LogRecord record) { forwarded.add(record); }
+        };
+        platform = new RecordingPlatform(platform.dir, parent); manager = new ProgramManager(platform);
+        write("program.json", "{\"language\":\"process\",\"command\":[\"python3\",\"-c\",\"print('{\\\"action\\\":\\\"console\\\",\\\"message\\\":\\\"ready\\\"}',flush=True);raise SystemExit(7)\"]}");
+        manager.reload().get(10, TimeUnit.SECONDS);
+        await(() -> forwarded.stream().anyMatch(r -> r.getLevel().equals(Level.INFO) && r.getMessage().contains("[@root] ready"))
+            && forwarded.stream().anyMatch(r -> r.getLevel().equals(Level.WARNING) && r.getMessage().contains("[@root] Program exited unexpectedly with code 7")));
+        for (LogRecord record : forwarded) assertTrue(record.getLoggerName(), record.getLoggerName().endsWith(".program.@root"));
+    }
     static final class RecordingPlatform implements Platform {
-        final File dir; final Logger log = Logger.getLogger("manager-test."+UUID.randomUUID());
+        final File dir; final Logger log;
         final BlockingQueue<Runnable> tasks = new LinkedBlockingQueue<>();
         final List<String> messages = new CopyOnWriteArrayList<>();
-        RecordingPlatform(File dir) { this.dir = dir; }
+        RecordingPlatform(File dir) { this(dir, Logger.getLogger("manager-test."+UUID.randomUUID())); }
+        RecordingPlatform(File dir, Logger log) { this.dir = dir; this.log = log; }
         public File directory() { return dir; } public Logger logger() { return log; }
         public void execute(Runnable action) { tasks.add(action); }
         public void broadcast(String message) { messages.add(message); }

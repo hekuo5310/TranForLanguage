@@ -83,9 +83,26 @@ public final class ProgramManager implements AutoCloseable {
         File[] dirs = root.listFiles(File::isDirectory);
         if (dirs == null) throw new IOException("Cannot list program directory: " + root);
         Arrays.sort(dirs);
+        String reserved = found.containsKey("@root") ? rootEntrypointDirectory(root) : null;
         for (File dir : dirs) if (!dir.getName().startsWith(".") && !dir.getName().startsWith("@")
-            && !Files.isSymbolicLink(dir.toPath()) && hasProgram(dir)) found.put(dir.getName(), dir);
+            && !dir.getName().equals(reserved) && !Files.isSymbolicLink(dir.toPath()) && hasProgram(dir)) found.put(dir.getName(), dir);
         return found;
+    }
+    private String rootEntrypointDirectory(File root) {
+        File manifest = new File(root, "program.json");
+        if (!manifest.isFile()) return null;
+        try (Reader reader = Files.newBufferedReader(manifest.toPath(), StandardCharsets.UTF_8)) {
+            JsonObject config = new Gson().fromJson(reader, JsonObject.class);
+            if (config == null || !config.has("entrypoint") || !config.get("entrypoint").isJsonPrimitive()
+                || !config.getAsJsonPrimitive("entrypoint").isString()) return null;
+            java.nio.file.Path source = new File(root, config.get("entrypoint").getAsString()).getCanonicalFile().toPath();
+            if (!source.startsWith(root.toPath()) || !Files.isRegularFile(source)) return null;
+            java.nio.file.Path relative = root.toPath().relativize(source);
+            return relative.getNameCount() > 1 ? relative.getName(0).toString() : null;
+        } catch (IOException | RuntimeException invalid) {
+            // A broken root manifest must not hide unrelated child programs.
+            return null;
+        }
     }
     private boolean hasProgram(File dir) {
         File[] files = dir.listFiles();
@@ -130,8 +147,22 @@ public final class ProgramManager implements AutoCloseable {
                     }
                 }
                 events = selected == null ? null : Collections.unmodifiableSet(selected);
-                Logger log = Logger.getLogger(platform.logger().getName() + ".program." + id);
-                log.setParent(platform.logger());
+                Logger log = new Logger(platform.logger().getName() + ".program." + id, null) {
+                    @Override public void log(java.util.logging.Level level, String message) {
+                        java.util.logging.LogRecord record = new java.util.logging.LogRecord(level, message);
+                        record.setLoggerName(getName()); log(record);
+                    }
+                    @Override public void log(java.util.logging.LogRecord record) {
+                        if (!isLoggable(record.getLevel())) return;
+                        java.util.logging.LogRecord copy = new java.util.logging.LogRecord(record.getLevel(), "[" + id + "] " + record.getMessage());
+                        copy.setLoggerName(record.getLoggerName() == null ? getName() : record.getLoggerName());
+                        copy.setParameters(record.getParameters()); copy.setThrown(record.getThrown());
+                        copy.setResourceBundle(record.getResourceBundle()); copy.setResourceBundleName(record.getResourceBundleName());
+                        copy.setSourceClassName(record.getSourceClassName()); copy.setSourceMethodName(record.getSourceMethodName());
+                        platform.logger().log(copy);
+                    }
+                };
+                log.setLevel(java.util.logging.Level.ALL);
                 ProgramRuntime next = new ProgramRuntime(new Platform() {
                     public File directory() { return directory; }
                     public Logger logger() { return log; }
