@@ -147,6 +147,30 @@ public class ProgramRuntimeTest {
             logger.removeHandler(handler);
         }
     }
+    @Test public void closeAtPreparedLaunchBoundaryNeverStartsCancelledProgram() throws Exception {
+        CountDownLatch preparing = new CountDownLatch(1), proceed = new CountDownLatch(1);
+        File marker = new File(platform.dir, "started-after-cancel");
+        runtime.languages().register(new LanguageProvider() {
+            public String id() { return "launch-boundary"; }
+            public LaunchCommand prepare(File directory, JsonObject configuration, Logger logger) throws Exception {
+                preparing.countDown(); proceed.await();
+                return new LaunchCommand(directory, Arrays.asList("python3", "-c",
+                    "import pathlib,time;pathlib.Path('started-after-cancel').touch();time.sleep(30)"));
+            }
+        });
+        write("program.json", "{\"language\":\"launch-boundary\"}");
+        CompletableFuture<Void> launching = runtime.reload();
+        assertTrue(preparing.await(5, TimeUnit.SECONDS));
+        // Hold the lifecycle boundary while preparation returns, then cancel before release.
+        synchronized (runtime) {
+            proceed.countDown(); Thread.sleep(300);
+            runtime.close();
+        }
+        try { launching.get(5, TimeUnit.SECONDS); } catch (CancellationException | ExecutionException expected) {}
+        Thread.sleep(100);
+        assertFalse("No child side effects after a cancelled prepared launch", marker.exists());
+        assertFalse(runtime.isRunning());
+    }
     static class FakePlatform implements Platform {
         final File dir;
         final Logger log = Logger.getLogger("test");

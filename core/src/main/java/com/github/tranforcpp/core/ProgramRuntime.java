@@ -31,11 +31,10 @@ public final class ProgramRuntime implements AutoCloseable {
             stopSession();
             try {
                 LaunchCommand command = languages.prepare(platform.directory(), platform.logger());
-                if (command == null || closed || generation.get() != expected) return;
-                Process process = new ProcessBuilder(command.arguments()).directory(command.directory()).start();
-                Session next = new Session(process, expected);
                 synchronized (this) {
-                    if (closed || generation.get() != expected) { process.destroyForcibly(); return; }
+                    if (command == null || closed || generation.get() != expected) return;
+                    Process process = new ProcessBuilder(command.arguments()).directory(command.directory()).start();
+                    Session next = new Session(process, expected);
                     session = next;
                     next.start();
                 }
