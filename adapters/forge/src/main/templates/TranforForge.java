@@ -1,6 +1,6 @@
 package com.github.tranforcpp.@LOADER@;
 
-import com.github.tranforcpp.core.ProgramRuntime;
+import com.github.tranforcpp.core.ProgramManager;
 import com.github.tranforcpp.minecraft.*;
 import @FML@.common.Mod;
 import @EVENTBUS@.SubscribeEvent;
@@ -22,11 +22,11 @@ import java.io.File;
 
 @Mod("tranforcpp")
 public final class TranforForge {
-    private volatile ProgramRuntime runtime;
+    private volatile ProgramManager runtime;
     public TranforForge() { @REGISTER@; }
-    private void emit(String name, Object... args) { ProgramRuntime r = runtime; if (r != null) r.sendEvent(name, args); }
+    private void emit(String name, Object... args) { ProgramManager r = runtime; if (r != null) r.sendEvent(name, args); }
     @SubscribeEvent public void start(ServerStartedEvent event) {
-        runtime = new ProgramRuntime(new MinecraftPlatform(event.getServer(), new File("config/tranforcpp/programs")));
+        runtime = new ProgramManager(new MinecraftPlatform(event.getServer(), new File("config/tranforcpp/programs")));
         runtime.reload().whenComplete((v, error) -> { if (error != null) java.util.logging.Logger.getLogger("TranForLanguage").severe(error.toString()); });
     }
     @SubscribeEvent public void stop(ServerStoppingEvent event) { if (runtime != null) { runtime.close(); runtime = null; } }

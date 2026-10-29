@@ -23,6 +23,8 @@ with zipfile.ZipFile(files[0]) as jar:
         assert 'sdk/' + resource in names, 'Missing bundled SDK: ' + resource
     assert 'LICENSE' in names, 'Missing project license'
     assert 'com/github/tranforcpp/core/ProgramRuntime.class' in names
+    assert 'com/github/tranforcpp/core/ProgramManager.class' in names
+    assert not any(name.endswith('/MemoryOptimizer.class') or name.endswith('/SmartThreadOptimizer.class') for name in names)
     assert 'com/github/tranforcpp/core/language/LanguageProvider.class' in names
     majors = {struct.unpack('>H', jar.read(name)[6:8])[0] for name in names
               if name.endswith('.class') and name.startswith('com/github/tranforcpp/')}

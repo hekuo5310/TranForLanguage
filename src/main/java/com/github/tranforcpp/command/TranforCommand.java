@@ -1,68 +1,36 @@
 package com.github.tranforcpp.command;
 
 import com.github.tranforcpp.TranforCPlusPlus;
-import org.bukkit.command.Command;
-import org.bukkit.command.CommandExecutor;
-import org.bukkit.command.CommandSender;
-import com.github.tranforcpp.utils.Messages;
+import com.github.tranforcpp.core.ProgramManager;
+import org.bukkit.command.*;
+import java.util.*;
+import java.util.concurrent.CompletableFuture;
 
-/**
- * TranForLanguage主命令处理器
- * <p> 
- * 处理/tranforlanguage命令的各种子命令。
- * 支持插件重载、版本查询等功能。
- * <p>
- * 支持的子命令：
- * - reload: 重新加载程序
- * - version/ver: 显示插件版本信息
- */
 public class TranforCommand implements CommandExecutor {
-    
-
-    private static final String USAGE_MESSAGE = "<red>用法: /tranforlanguage <reload|version|ver>";
-    private static final String PERMISSION_DENIED = "<red>权限不足";
-    private static final String RELOAD_START = "<yellow>正在重载...";
-    private static final String RELOAD_COMPLETE = "<green>重载完成!";
-    private static final String VERSION_PREFIX = "<white>[<aqua>TranForLanguage<white>] <green>您当前服务器的模块版本为: <green>";
-    private static final String UNKNOWN_COMMAND = "<red>未知指令! 用法: /tranforlanguage <reload|version|ver>";
-
-    @Override
-    public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-        if (args.length == 0) {
-            sender.sendMessage(Messages.format(USAGE_MESSAGE));
-            return true;
-        }
-        
-        String subCommand = args[0].toLowerCase();
-
-        switch (subCommand) {
-            case "reload": return handleReload(sender);
-            case "version": case "ver": return handleVersion(sender);
-            default: sender.sendMessage(Messages.format(UNKNOWN_COMMAND)); return true;
-        }
-    }
-    
-    private boolean handleReload(CommandSender sender) {
-        if (!sender.hasPermission("tranforcpp.reload")) {
-            sender.sendMessage(Messages.format(PERMISSION_DENIED));
-            return true;
-        }
-        sender.sendMessage(Messages.format(RELOAD_START));
+    @Override public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
+        if (args.length == 0) { sender.sendMessage("/tranforlanguage <list|version|reload [id]|start id|stop id>"); return true; }
+        String action = args[0].toLowerCase(Locale.ROOT);
         TranforCPlusPlus plugin = TranforCPlusPlus.getInstance();
-        plugin.getProcessManager().reloadAsync().whenComplete((v, error) -> {
-            if (plugin.isEnabled()) org.bukkit.Bukkit.getScheduler().runTask(plugin, () ->
-                sender.sendMessage(Messages.format(error == null ? RELOAD_COMPLETE : "<red>重载失败，请查看服务端日志: " + error.getMessage())));
-        });
-        return true;
-    }
-    
-    private boolean handleVersion(CommandSender sender) {
-        if (!sender.hasPermission("tranforcpp.version")) {
-            sender.sendMessage(Messages.format(PERMISSION_DENIED));
-            return true;
+        ProgramManager programs = plugin.getProcessManager().programs();
+        if (action.equals("version") || action.equals("ver")) {
+            if (!sender.hasPermission("tranforcpp.version")) { sender.sendMessage("权限不足"); return true; }
+            sender.sendMessage("TranForLanguage " + plugin.getDescription().getVersion()); return true;
         }
-        String version = TranforCPlusPlus.getInstance().getDescription().getVersion();
-        sender.sendMessage(Messages.format(VERSION_PREFIX + version));
+        if (action.equals("list")) {
+            for (ProgramManager.Status status : programs.statuses()) sender.sendMessage(status.toString());
+            sender.sendMessage("程序数量: " + programs.statuses().size()); return true;
+        }
+        if (!Arrays.asList("reload", "start", "stop").contains(action)) { sender.sendMessage("未知子命令"); return true; }
+        if (!sender.hasPermission("tranforcpp.reload")) { sender.sendMessage("权限不足"); return true; }
+        String id = args.length > 1 ? String.join(" ", Arrays.copyOfRange(args, 1, args.length)) : null;
+        if (id == null && !action.equals("reload")) { sender.sendMessage("请指定 list 中的程序 ID"); return true; }
+        CompletableFuture<Void> operation = action.equals("stop") ? programs.stop(id)
+            : id == null ? programs.reload() : programs.reload(id);
+        sender.sendMessage("正在处理程序...");
+        operation.whenComplete((v, error) -> {
+            if (plugin.isEnabled()) plugin.getServer().getScheduler().runTask(plugin,
+                () -> sender.sendMessage(error == null ? "操作完成" : "操作失败: " + error.getMessage()));
+        });
         return true;
     }
 }

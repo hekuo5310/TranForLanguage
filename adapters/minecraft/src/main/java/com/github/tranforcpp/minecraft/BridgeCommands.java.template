@@ -1,28 +1,43 @@
 package com.github.tranforcpp.minecraft;
 
-import com.github.tranforcpp.core.ProgramRuntime;
+import com.github.tranforcpp.core.ProgramManager;
 import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.arguments.StringArgumentType;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
 
 public final class BridgeCommands {
-    public static void register(CommandDispatcher<CommandSourceStack> dispatcher, java.util.function.Supplier<ProgramRuntime> runtime) {
+    public static void register(CommandDispatcher<CommandSourceStack> dispatcher, java.util.function.Supplier<ProgramManager> runtime) {
         com.mojang.brigadier.tree.LiteralCommandNode<CommandSourceStack> command = dispatcher.register(Commands.literal("tranforlanguage")
             .requires(@PERMISSION@)
             .then(Commands.literal("version").executes(ctx -> {
-                ctx.getSource().sendSuccess(() -> Component.literal("TranForLanguage 1.2.0"), false); return 1;
+                ctx.getSource().sendSuccess(() -> Component.literal("TranForLanguage @VERSION@"), false); return 1;
             }))
-            .then(Commands.literal("reload").executes(ctx -> {
-                ProgramRuntime active = runtime.get();
-                if (active == null) { ctx.getSource().sendFailure(Component.literal("服务端尚未启动")); return 0; }
-                ctx.getSource().sendSuccess(() -> Component.literal("正在重载程序..."), false);
-                active.reload().whenComplete((v, error) -> ctx.getSource().getServer().execute(() -> {
-                    if (error == null) ctx.getSource().sendSuccess(() -> Component.literal("重载完成"), false);
-                    else ctx.getSource().sendFailure(Component.literal("重载失败: " + error.getMessage()));
-                }));
+            .then(Commands.literal("list").executes(ctx -> {
+                ProgramManager active = runtime.get();
+                if (active != null) for (ProgramManager.Status status : active.statuses())
+                    ctx.getSource().sendSuccess(() -> Component.literal(status.toString()), false);
                 return 1;
-            })));
+            }))
+            .then(Commands.literal("reload").executes(ctx -> operate(ctx.getSource(), runtime.get(), null, false))
+                .then(Commands.argument("id", StringArgumentType.greedyString()).executes(ctx ->
+                    operate(ctx.getSource(), runtime.get(), StringArgumentType.getString(ctx, "id"), false))))
+            .then(Commands.literal("start").then(Commands.argument("id", StringArgumentType.greedyString()).executes(ctx ->
+                operate(ctx.getSource(), runtime.get(), StringArgumentType.getString(ctx, "id"), false))))
+            .then(Commands.literal("stop").then(Commands.argument("id", StringArgumentType.greedyString()).executes(ctx ->
+                operate(ctx.getSource(), runtime.get(), StringArgumentType.getString(ctx, "id"), true)))));
         dispatcher.register(Commands.literal("tranforcpp").requires(@PERMISSION@).redirect(command));
+    }
+    private static int operate(CommandSourceStack source, ProgramManager active, String id, boolean stop) {
+        if (active == null) { source.sendFailure(Component.literal("服务端尚未启动")); return 0; }
+        source.sendSuccess(() -> Component.literal("正在处理程序..."), false);
+        java.util.concurrent.CompletableFuture<Void> operation = stop ? active.stop(id)
+            : id == null ? active.reload() : active.reload(id);
+        operation.whenComplete((v, error) -> source.getServer().execute(() -> {
+            if (error == null) source.sendSuccess(() -> Component.literal("操作完成"), false);
+            else source.sendFailure(Component.literal("操作失败: " + error.getMessage()));
+        }));
+        return 1;
     }
 }

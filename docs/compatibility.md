@@ -32,13 +32,13 @@ Spigot 发行 JAR 按最旧的 1.8 API 编译、输出 Java 8 字节码，移除
 | 命令执行 | 有，Bukkit 服务器命令 | 尚未接入 | 有，包含玩家命令 |
 | 移动、掉落、拾取、物品栏点击、天气、点燃、悬挂实体破坏、伤害 | 有（生成/拾取按版本可选） | 尚未接入 | 尚未接入 |
 
-模组中的物品/方块/实体值来自其平台表示，不能假定与 Bukkit Material 枚举名称完全相同。现有 Bukkit `GenericTranforCEvent` Java 事件保持可用，但不是跨加载器 Java API。
+模组中的物品/方块/实体值来自其平台表示，不能假定与 Bukkit Material 枚举名称完全相同。现有 Bukkit `GenericTranforCEvent` Java 事件保持可用（仅在存在监听器时创建），但不是跨加载器 Java API。`EntityDamage` / `EntityDeath` 包括玩家，`PlayerDeath` 是额外的玩家专用通知；事件名不同，订阅时按需选择，不能当作相同事件去重。Spigot `PlayerMove` 忽略仅转头事件，并默认按玩家限频至每 100ms 一次。
 
 ## 自动检查与边界
 
 CI 对锁定矩阵进行 API 编译/打包，Spigot 最旧目标运行共用核心集成测试，产物按平台和精确游戏版本命名；发布仅由 `v*` 标签触发，必须先通过构建。
 
-共用核心测试实际编译并运行小型 C++ 程序、运行 Python 程序，检查单条事件及时传输、UTF-8/JSON、服务器线程调度、重载后拒绝旧操作、未知语言、扩展适配器及关闭。编译通过只能证明 API 和打包检查成功，不能替代服务端启动、真实玩家和各游戏事件的运行验收。
+共用核心测试实际编译并运行 C、C++、Python、Rust 程序，检查多语言插件并行、独立停止/重载、启动失败隔离、事件订阅、退出码与关闭时取消准备，检查单条事件及时传输、UTF-8/JSON、服务器线程调度、重载后拒绝旧操作、未知语言、扩展适配器及关闭。编译通过只能证明 API 和打包检查成功，不能替代服务端启动、真实玩家和各游戏事件的运行验收。
 
 维护版本锁文件：
 
@@ -49,3 +49,7 @@ python3 scripts/test-versions.py
 ```
 
 更新后检查 diff 和 CI；不得在失败时仅放宽模组元数据来绕过兼容问题。
+
+## 运行模块清理
+
+移除两套强制 GC/无实际缓存使用者的 MemoryOptimizer，以及无任务调用方的 SmartThreadOptimizer。启动直接创建 ProcessManager，不再初始化空的 StartupManager / SmartEventDispatcher；插件列表使用 Bukkit 下一 tick 调度和程序状态快照，不创建额外的定时线程。实际的有界事件队列、进程生命周期与主线程操作约束保留。

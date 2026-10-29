@@ -14,11 +14,12 @@ public final class ProgramRuntime implements AutoCloseable {
     private final Platform platform;
     private final LanguageProviders languages = new LanguageProviders();
     public LanguageProviders languages() { return languages; }
-    private final Gson gson = new Gson();
+    private static final Gson gson = new Gson();
     private final ExecutorService lifecycle = Executors.newSingleThreadExecutor(r -> daemon(r, "TranforProgram-Lifecycle"));
     private final AtomicLong generation = new AtomicLong();
     private volatile Session session;
     private volatile boolean closed;
+    private final java.util.Set<CompletableFuture<Void>> pending = java.util.Collections.newSetFromMap(new ConcurrentHashMap<CompletableFuture<Void>, Boolean>());
     public ProgramRuntime(Platform platform) { this.platform = platform; }
     private static Thread daemon(Runnable r, String name) {
         Thread t = new Thread(r, name); t.setDaemon(true); return t;
@@ -26,30 +27,37 @@ public final class ProgramRuntime implements AutoCloseable {
     public synchronized CompletableFuture<Void> reload() {
         if (closed) throw new IllegalStateException("Runtime closed");
         final long expected = generation.incrementAndGet();
-        return CompletableFuture.runAsync(() -> {
+        CompletableFuture<Void> future = CompletableFuture.runAsync(() -> {
             stopSession();
             try {
                 LaunchCommand command = languages.prepare(platform.directory(), platform.logger());
-                if (command == null || closed || generation.get() != expected) return;
-                Process process = new ProcessBuilder(command.arguments()).directory(command.directory()).start();
-                Session next = new Session(process, expected);
                 synchronized (this) {
-                    if (closed || generation.get() != expected) { process.destroyForcibly(); return; }
+                    if (command == null || closed || generation.get() != expected) return;
+                    Process process = new ProcessBuilder(command.arguments()).directory(command.directory()).start();
+                    Session next = new Session(process, expected);
                     session = next;
                     next.start();
                 }
             } catch (Exception e) { throw new CompletionException(e); }
         }, lifecycle);
+        pending.add(future); future.whenComplete((v, error) -> pending.remove(future));
+        return future;
     }
     public boolean isRunning() { Session s = session; return s != null && s.process.isAlive(); }
     public void sendEvent(String name, Object... args) {
-        Session s = session;
-        if (s == null || !s.process.isAlive()) return;
+        if (isRunning()) sendLine(eventLine(name, args));
+    }
+    static String eventLine(String name, Object... args) {
         JsonObject event = new JsonObject(); event.addProperty("event", name);
         JsonArray values = new JsonArray();
         for (Object arg : args) values.add(arg == null ? "null" : String.valueOf(arg));
         event.add("args", values);
-        if (!s.queue.offer(gson.toJson(event))) {
+        return gson.toJson(event);
+    }
+    void sendLine(String line) {
+        Session s = session;
+        if (s == null || !s.process.isAlive()) return;
+        if (!s.queue.offer(line)) {
             s.droppedSinceWarning.incrementAndGet();
             s.reportDroppedEvents(false);
         }
@@ -80,6 +88,7 @@ public final class ProgramRuntime implements AutoCloseable {
     @Override public void close() {
         synchronized (this) { closed = true; generation.incrementAndGet(); }
         lifecycle.shutdownNow();
+        for (CompletableFuture<Void> future : pending) future.cancel(false);
         stopSession();
     }
     private final class Session {
@@ -108,6 +117,13 @@ public final class ProgramRuntime implements AutoCloseable {
         }
         void start() {
             sender.start();
+            daemon(() -> {
+                try {
+                    int code = process.waitFor();
+                    if (!stopped) platform.logger().warning("Program exited unexpectedly with code " + code
+                        + "; use reload to restart (no automatic restart)");
+                } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+            }, "TranforProgram-Exit").start();
             daemon(() -> read(process.getInputStream(), false), "TranforProgram-Reader").start();
             daemon(() -> read(process.getErrorStream(), true), "TranforProgram-Stderr").start();
         }

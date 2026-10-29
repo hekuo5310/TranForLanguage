@@ -6,10 +6,10 @@
 
 | 产物 | 目标 | 构建工具 |
 | --- | --- | --- |
-| `tranforlanguage-spigot-1.2.0.jar` | Spigot / 常规 Paper 分支，官方 API 1.8–26.3 | Maven |
-| `tranforlanguage-fabric-<游戏版本>-1.2.0.jar` | Fabric 1.20–26.3，逐版本构建 | Gradle + Loom |
-| `tranforlanguage-neoforge-<游戏版本>-1.2.0.jar` | NeoForge 1.21–26.3，逐版本构建 | Gradle + ModDevGradle |
-| `tranforlanguage-forge-<游戏版本>-1.2.0.jar` | Forge 1.20.x–1.21.x，按官方已发布版本构建 | Gradle + ForgeGradle |
+| `tranforlanguage-spigot-2.0.0.jar` | Spigot / 常规 Paper 分支，官方 API 1.8–26.3 | Maven |
+| `tranforlanguage-fabric-<游戏版本>-2.0.0.jar` | Fabric 1.20–26.3，逐版本构建 | Gradle + Loom |
+| `tranforlanguage-neoforge-<游戏版本>-2.0.0.jar` | NeoForge 1.21–26.3，逐版本构建 | Gradle + ModDevGradle |
+| `tranforlanguage-forge-<游戏版本>-2.0.0.jar` | Forge 1.20.x–1.21.x，按官方已发布版本构建 | Gradle + ForgeGradle |
 
 目标范围与运行实测是不同的检查。[兼容说明](docs/compatibility.md)列出版本矩阵、尚未接入的模组事件和验证边界。Spigot 1.8 之前及 Folia 尚未建立兼容保障。
 
@@ -21,7 +21,7 @@
 mvn clean verify
 ```
 
-安装 `target/tranforlanguage-spigot-1.2.0.jar` 到 `plugins/`。不再为同一插件维护 Maven / Gradle 两份构建。
+安装 `target/tranforlanguage-spigot-2.0.0.jar` 到 `plugins/`。不再为同一插件维护 Maven / Gradle 两份构建。
 
 ### Fabric / Forge / NeoForge
 
@@ -41,7 +41,7 @@ gradle -p adapters/forge clean build
 
 构建还需要目标游戏的 Java toolchain（17 / 21 / 25），见[版本锁文件](compatibility/versions.json)中的 `java` 与 `gradle` 字段。CI 自动安装这些 JDK 和正确的 Gradle。产物在相应 `adapters/<加载器>/build/libs/`，仅安装与服务器加载器及 Minecraft 版本完全一致的发行 JAR 到 `mods/`。Fabric 额外安装对应游戏版本的 Fabric API。
 
-也可从 GitHub Actions 下载按平台/游戏版本区分的产物；发布由 `v*` 标签触发，所有构建必须通过。
+也可从 GitHub Actions 下载按平台/游戏版本区分的产物。常规版本通过与项目版本一致的 `v*` 标签发布；本次 2.0.0 由 main 分支上带 `[release-v2.0.0]` 标记的提交在完整构建通过后自动创建标签并发布，不覆盖指向其他提交的标签。
 
 ## 安装程序
 
@@ -104,14 +104,37 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 {"protocol": 1, "language": "python", "entrypoint": "scripts/main.py"}
 ```
 
-`python` / `rust` 的 `entrypoint` 必须是程序目录内已有文件，分别默认 `main.py` / `main.rs`；`c` / `cpp` 编译程序目录下全部对应源文件。一个目录仍只运行一个程序进程；Rust 内置适配器面向源码入口，不接管用户已有 Cargo 工程。如需自定义 Cargo 依赖或其他语言，先自行构建后用原有 `process` 适配器启动。参见[协议与语言扩展](docs/protocol.md)。编译输出统一写入程序目录的 `compile.log`，`.tranforcpp/` 是自动维护的构建缓存，不要存放手写代码。
+`python` / `rust` 的 `entrypoint` 必须是程序目录内已有文件，分别默认 `main.py` / `main.rs`；`c` / `cpp` 编译程序目录下全部对应源文件。每个插件子目录运行独立进程，同目录仍只放一个程序入口；Rust 内置适配器面向源码入口，不接管用户已有 Cargo 工程。如需自定义 Cargo 依赖或其他语言，先自行构建后用原有 `process` 适配器启动。参见[协议与语言扩展](docs/protocol.md)。编译输出统一写入程序目录的 `compile.log`，`.tranforcpp/` 是自动维护的构建缓存，不要存放手写代码。
+
+## 多语言插件共存
+
+在上面的程序目录下，为每个插件建立独立子目录：
+
+| 插件 ID | 入口示例 | 运行方式 |
+| --- | --- | --- |
+| `welcome` | `welcome/main.py` | 独立 Python 进程 |
+| `native` | `native/main.cpp` | 独立 C++ 进程 |
+| `tools` | `tools/main.c` | 独立 C 进程 |
+| `rules` | `rules/main.rs` | 独立 Rust 进程 |
+| `@root` | 根目录 `main.cpp` 等旧入口 | 保留旧根目录程序，可与子目录程序同时运行 |
+
+每个子目录可有自己的 `program.json`、日志、SDK 缓存和依赖。根目录配置的嵌套 `entrypoint` 所在顶层目录归根程序使用，不会再次启动为子插件。只扫描直接子目录；点开头、`@` 开头及符号链接目录不作为插件加载。空目录不启动进程。一个插件编译失败或退出，不会停止其他插件；退出码写入带插件 ID 的日志，状态变为 `STOPPED`，不自动重启。编译/配置失败标记 `FAILED`，由管理员修复后重新启动。
+
+游戏事件只序列化一次，再投递到各插件独立的有界队列。可在每个插件的 `program.json` 中指定 `"events": ["PlayerJoin", "PlayerChat"]`，只接收需要的事件；省略则保留全部事件，空数组不接收游戏事件（仍接收关闭通知）。Spigot 移动事件只报告位置改变，默认每名玩家最多每 100ms 一次；可用 `-Dtranforcpp.move-interval-ms=0` 关闭限频。
 
 ## 命令
 
-- `/tranforlanguage reload`：后台准备并重启程序；失败会明确反馈。
+- `/tranforlanguage list`：查看每个程序的 ID 和状态。
+- `/tranforlanguage reload`：重新扫描目录，移除已删除插件，并依次准备所有插件；健康插件不因其他插件失败而停止。
+- `/tranforlanguage reload <id>` / `start <id>`：独立准备并启动指定插件，新子目录无需重启其他插件。若指定插件已在运行，会先停止旧进程再准备并启动新进程；期间不向该插件投递事件，进程内未保存的状态会丢失。
+- `/tranforlanguage stop <id>`：只停止指定插件。
 - `/tranforlanguage version`：显示桥接版本。
-- Spigot 还保留 `/tranforcpp`、`/cpp`、`version` 的 `ver` 别名与 `tranforlanguage.use/reload/version` 权限节点（兼容旧 `tranforcpp.*` 节点）。
-- 模组命令要求操作员级别 2。
+- Spigot 保留 `/tranforcpp`、`/cpp`、`ver` 别名；`list` 使用 `.use` 权限，启动/停止/重载使用 `.reload`，版本使用 `.version`。新 `tranforlanguage.*` 权限兼容旧 `tranforcpp.*`。
+- 模组端命令要求操作员级别 2；ID 占据命令剩余部分，中文、空格及 `@root` 可直接输入，无需加引号。`@root` 指代兼容的根目录程序。
+
+## 程序权限与运行边界
+
+**只安装你信任的程序。这里没有进程沙箱或低权限执行环境。** 源码、`program.json`、编译配置和 `.tranforcpp/` 缓存都应由服务端管理员控制。程序以服务器进程的宿主权限运行，可读写其能访问的文件并自行发起网络请求；`executeCommand` / `dispatchCommand` 按现有协议拥有游戏控制台权限。命令接口的操作员权限只保护管理命令，不约束被安装程序。Rust 首次构建还会执行 Cargo 依赖的构建步骤；请审核依赖并保留锁文件。
 
 程序可请求广播、私信、控制台日志和控制台命令，所有游戏操作通过服务器线程执行。Spigot 保留 MiniMessage 格式，模组端当前使用纯文本。
 
@@ -121,7 +144,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 其他 Bukkit 插件若在 `depend` / `softdepend` 中声明了旧插件名 `TranforCPlusPlus`，需改为 `TranForLanguage`。
 
-GitHub 仓库地址、Java 包名/入口类、加载器 mod ID `tranforcpp`、Python 模块和 Rust crate `tranforcpp`、原生 SDK 名称、JVM 参数前缀及程序目录保持兼容，不需要迁移源码、配置或现有程序缓存。
+Java 包名/入口类、加载器 mod ID `tranforcpp`、Python 模块和 Rust crate `tranforcpp`、原生 SDK 名称、JVM 参数前缀及程序目录保持兼容，不需要迁移源码、配置或现有程序缓存。
 
 ## 开发
 
