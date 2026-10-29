@@ -99,6 +99,9 @@ jobs:
     needs: [spigot, mods]
     permissions:
       contents: write
+    concurrency:
+      group: publish-${{ github.repository }}-${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v2.0.0' }}
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -116,11 +119,19 @@ jobs:
             # One-time publication explicitly requested for this release merge.
             [[ "$version" == "2.0.0" ]] || { echo "Unexpected release version" >&2; exit 1; }
             tag="v2.0.0"
-            existing="$(git ls-remote --tags origin "refs/tags/$tag" "refs/tags/$tag^{}")"
-            target="$(printf '%s\n' "$existing" | awk -v ref="refs/tags/$tag" '$2 == ref { direct=$1 } $2 == ref "^{}" { peeled=$1 } END { print peeled ? peeled : direct }')"
-            if [[ -n "$target" && "$target" != "$GITHUB_SHA" ]]; then
-              echo "Refusing to move an existing release tag" >&2; exit 1
-            fi
+          fi
+          tag_target() {
+            git ls-remote --tags origin "refs/tags/$tag" "refs/tags/$tag^{}" |
+              awk -v ref="refs/tags/$tag" '$2 == ref { direct=$1 } $2 == ref "^{}" { peeled=$1 } END { print peeled ? peeled : direct }'
+          }
+          target="$(tag_target)"
+          if [[ -n "$target" && "$target" != "$GITHUB_SHA" ]]; then
+            echo "Refusing to move an existing release tag" >&2; exit 1
+          fi
+          if [[ -z "$target" ]]; then
+            git push origin "$GITHUB_SHA:refs/tags/$tag" || echo "Tag push did not complete; verifying the remote target" >&2
+            target="$(tag_target)"
+            [[ "$target" == "$GITHUB_SHA" ]] || { echo "Release tag does not point at this verified commit" >&2; exit 1; }
           fi
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
       - uses: actions/download-artifact@v4

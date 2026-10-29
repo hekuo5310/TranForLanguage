@@ -41,7 +41,7 @@ gradle -p adapters/forge clean build
 
 构建还需要目标游戏的 Java toolchain（17 / 21 / 25），见[版本锁文件](compatibility/versions.json)中的 `java` 与 `gradle` 字段。CI 自动安装这些 JDK 和正确的 Gradle。产物在相应 `adapters/<加载器>/build/libs/`，仅安装与服务器加载器及 Minecraft 版本完全一致的发行 JAR 到 `mods/`。Fabric 额外安装对应游戏版本的 Fabric API。
 
-也可从 GitHub Actions 下载按平台/游戏版本区分的产物；发布由 `v*` 标签触发，所有构建必须通过。
+也可从 GitHub Actions 下载按平台/游戏版本区分的产物。常规版本通过与项目版本一致的 `v*` 标签发布；本次 2.0.0 由带 `[release-v2.0.0]` 标记的 main 合并提交在完整构建通过后自动创建标签并发布，不覆盖指向其他提交的标签。
 
 ## 安装程序
 
@@ -126,7 +126,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 - `/tranforlanguage list`：查看每个程序的 ID 和状态。
 - `/tranforlanguage reload`：重新扫描目录，移除已删除插件，并依次准备所有插件；健康插件不因其他插件失败而停止。
-- `/tranforlanguage reload <id>` / `start <id>`：独立准备并启动指定插件，新子目录无需重启其他插件。
+- `/tranforlanguage reload <id>` / `start <id>`：独立准备并启动指定插件，新子目录无需重启其他插件。若指定插件已在运行，会先停止旧进程再准备并启动新进程；期间不向该插件投递事件，进程内未保存的状态会丢失。
 - `/tranforlanguage stop <id>`：只停止指定插件。
 - `/tranforlanguage version`：显示桥接版本。
 - Spigot 保留 `/tranforcpp`、`/cpp`、`ver` 别名；`list` 使用 `.use` 权限，启动/停止/重载使用 `.reload`，版本使用 `.version`。新 `tranforlanguage.*` 权限兼容旧 `tranforcpp.*`。
