@@ -1,9 +1,5 @@
 package com.github.tranforcpp;
 
-import com.github.tranforcpp.compiler.CppCompiler;
-import com.github.tranforcpp.optimizer.SmartThreadOptimizer;
-import com.google.gson.Gson;
-import com.google.gson.JsonObject;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -23,12 +19,7 @@ import org.bukkit.event.weather.WeatherChangeEvent;
 import org.bukkit.event.world.WorldLoadEvent;
 import java.io.*;
 import java.util.*;
-import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
-
-import com.github.tranforcpp.core.ProgramRuntime;
+import com.github.tranforcpp.core.ProgramManager;
 import com.github.tranforcpp.core.Platform;
 import org.bukkit.event.Event;
 import org.bukkit.event.EventPriority;
@@ -38,11 +29,14 @@ import com.github.tranforcpp.utils.Messages;
 
 public class ProcessManager implements Listener {
     private final TranforCPlusPlus plugin;
-    private final ProgramRuntime runtime;
+    private final ProgramManager runtime;
     private boolean registered;
+    private static final long MOVE_INTERVAL = java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(
+        Math.max(0, Long.getLong("tranforcpp.move-interval-ms", 100L)));
+    private final com.github.tranforcpp.core.EventRateLimiter<java.util.UUID> moves = new com.github.tranforcpp.core.EventRateLimiter<>(MOVE_INTERVAL);
     public ProcessManager(TranforCPlusPlus plugin) {
         this.plugin = plugin;
-        this.runtime = new ProgramRuntime(new Platform() {
+        this.runtime = new ProgramManager(new Platform() {
             public File directory() { return new File(plugin.getDataFolder().getParentFile(), "C++ Plugins"); }
             public java.util.logging.Logger logger() { return plugin.getLogger(); }
             public void execute(Runnable task) {
@@ -77,7 +71,7 @@ public class ProcessManager implements Listener {
             });
             registered = true;
         }
-        runtime.reload().whenComplete((v, error) -> { if (error != null) plugin.getLogger().severe("C++ 启动失败: " + error); });
+        runtime.reload().whenComplete((v, error) -> { if (error != null) plugin.getLogger().severe("程序启动失败: " + error); });
     }
     @SuppressWarnings("unchecked")
     private boolean optional(String name, java.util.function.Consumer<Event> handler) {
@@ -88,11 +82,13 @@ public class ProcessManager implements Listener {
             return true;
         } catch (ClassNotFoundException e) { return false; }
     }
-    public void stop() { HandlerList.unregisterAll(this); registered = false; runtime.close(); }
+    public void stop() { HandlerList.unregisterAll(this); registered = false; moves.clear(); runtime.close(); }
+    public ProgramManager programs() { return runtime; }
     public java.util.concurrent.CompletableFuture<Void> reloadAsync() { return runtime.reload(); }
     public void restart() { reloadAsync(); }
     public void sendEvent(String name, Object... args) {
         runtime.sendEvent(name, args);
+        if (GenericTranforCEvent.getHandlerList().getRegisteredListeners().length == 0) return;
         Runnable notify = () -> Bukkit.getPluginManager().callEvent(new GenericTranforCEvent(name, args));
         if (Bukkit.isPrimaryThread()) notify.run();
         else if (plugin.isEnabled()) Bukkit.getScheduler().runTask(plugin, notify);
@@ -117,6 +113,7 @@ public class ProcessManager implements Listener {
 
     @EventHandler
     public void onPlayerQuit(PlayerQuitEvent event) {
+        moves.forget(event.getPlayer().getUniqueId());
         sendEvent("PlayerQuit", event.getPlayer().getName());
     }
 
@@ -166,6 +163,12 @@ public class ProcessManager implements Listener {
 
     @EventHandler
     public void onPlayerMove(PlayerMoveEvent event) {
+        org.bukkit.Location to = event.getTo(), from = event.getFrom();
+        if (to == null || (from.getWorld() == to.getWorld() && from.getX() == to.getX()
+            && from.getY() == to.getY() && from.getZ() == to.getZ())) return;
+        long now = System.nanoTime();
+        java.util.UUID id = event.getPlayer().getUniqueId();
+        if (!moves.allow(id, now)) return;
         sendEvent("PlayerMove", event.getPlayer().getName());
     }
 

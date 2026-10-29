@@ -1,50 +1,24 @@
 package com.github.tranforcpp.command;
 
-import org.bukkit.command.Command;
-import org.bukkit.command.CommandSender;
-import org.bukkit.command.TabCompleter;
-
-import java.util.ArrayList;
-import java.util.List;
+import com.github.tranforcpp.TranforCPlusPlus;
+import com.github.tranforcpp.core.ProgramManager;
+import org.bukkit.command.*;
+import java.util.*;
 
 public class TranforTabCompleter implements TabCompleter {
-    
-    private static final String[] ALL_COMMANDS = {"reload", "version", "ver"};
-    private static final String[] RELOAD_ONLY = {"reload"};
-    private static final String[] VERSION_ONLY = {"version", "ver"};
-    private static final String[] EMPTY_ARRAY = new String[0];
-
-    @Override
-    public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
-        if (args.length != 1) {
-            return java.util.Collections.emptyList();
+    @Override public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
+        List<String> choices = new ArrayList<>();
+        if (args.length == 1) {
+            choices.add("list");
+            if (sender.hasPermission("tranforcpp.version")) choices.addAll(Arrays.asList("version", "ver"));
+            if (sender.hasPermission("tranforcpp.reload")) choices.addAll(Arrays.asList("reload", "start", "stop"));
+        } else if (args.length == 2 && sender.hasPermission("tranforcpp.reload")
+            && Arrays.asList("reload", "start", "stop").contains(args[0].toLowerCase(Locale.ROOT))) {
+            for (ProgramManager.Status status : TranforCPlusPlus.getInstance().getProcessManager().programs().statuses()) choices.add(status.id);
         }
-        
-        String input = args[0].toLowerCase();
-        String[] candidates = getCandidates(sender);
-        
-        List<String> result = new ArrayList<>(candidates.length);
-        for (String candidate : candidates) {
-            if (candidate.startsWith(input)) {
-                result.add(candidate);
-            }
-        }
-        
-        return result;
-    }
-    
-    private String[] getCandidates(CommandSender sender) {
-        boolean canReload = sender.hasPermission("tranforcpp.reload");
-        boolean canVersion = sender.hasPermission("tranforcpp.version");
-        
-        if (canReload && canVersion) {
-            return ALL_COMMANDS;
-        } else if (canReload) {
-            return RELOAD_ONLY;
-        } else if (canVersion) {
-            return VERSION_ONLY;
-        } else {
-            return EMPTY_ARRAY;
-        }
+        if (args.length == 0) return Collections.emptyList();
+        String input = args[args.length - 1].toLowerCase(Locale.ROOT);
+        choices.removeIf(value -> !value.toLowerCase(Locale.ROOT).startsWith(input));
+        return choices;
     }
 }

@@ -1,6 +1,6 @@
 package com.github.tranforcpp.fabric;
 
-import com.github.tranforcpp.core.ProgramRuntime;
+import com.github.tranforcpp.core.ProgramManager;
 import com.github.tranforcpp.minecraft.*;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.loader.api.FabricLoader;
@@ -18,11 +18,11 @@ import net.minecraft.world.InteractionResult;
 import net.minecraft.server.level.ServerPlayer;
 
 public final class TranforFabric implements ModInitializer {
-    private volatile ProgramRuntime runtime;
-    private void event(String name, Object... args) { ProgramRuntime r = runtime; if (r != null) r.sendEvent(name, args); }
+    private volatile ProgramManager runtime;
+    private void event(String name, Object... args) { ProgramManager r = runtime; if (r != null) r.sendEvent(name, args); }
     public void onInitialize() {
         ServerLifecycleEvents.SERVER_STARTED.register(server -> {
-            runtime = new ProgramRuntime(new MinecraftPlatform(server, FabricLoader.getInstance().getGameDir().resolve("config/tranforcpp/programs").toFile()));
+            runtime = new ProgramManager(new MinecraftPlatform(server, FabricLoader.getInstance().getGameDir().resolve("config/tranforcpp/programs").toFile()));
             runtime.reload().whenComplete((v, error) -> { if (error != null) java.util.logging.Logger.getLogger("TranForLanguage").severe(error.toString()); });
         });
         ServerLifecycleEvents.SERVER_STOPPING.register(server -> { if (runtime != null) { runtime.close(); runtime = null; } });

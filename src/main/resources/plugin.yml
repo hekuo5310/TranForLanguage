@@ -33,6 +33,6 @@ permissions:
 commands:
   tranforlanguage:
     description: Manage TranForLanguage programs
-    usage: /<command> <reload|version>
+    usage: /<command> <list|version|reload [id]|start id|stop id>
     aliases: [tranforcpp, cpp]
     permission: tranforcpp.use

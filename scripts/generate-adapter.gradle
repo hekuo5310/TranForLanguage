@@ -13,6 +13,7 @@ def generate = tasks.register('generateAdapter') {
     inputs.dir('../forge/src/main/templates')
     inputs.dir('../fabric/src/main/templates')
     inputs.property('minecraft', mc)
+    inputs.property('version', project.version)
     inputs.property('loader', project.name)
     outputs.dir(layout.buildDirectory.dir('generated/adapter'))
     doLast {
@@ -20,7 +21,7 @@ def generate = tasks.register('generateAdapter') {
         delete dest
         def shared = new File(dest, 'com/github/tranforcpp/minecraft')
         shared.mkdirs()
-        new File(shared, 'BridgeCommands.java').text = file('../minecraft/src/main/java/com/github/tranforcpp/minecraft/BridgeCommands.java.template').getText('UTF-8').replace('@PERMISSION@', permission)
+        new File(shared, 'BridgeCommands.java').text = file('../minecraft/src/main/java/com/github/tranforcpp/minecraft/BridgeCommands.java.template').getText('UTF-8').replace('@PERMISSION@', permission).replace('@VERSION@', project.version.toString())
         if (project.name == 'fabric') {
             def target = new File(dest, 'com/github/tranforcpp/fabric/TranforFabric.java')
             target.parentFile.mkdirs()
