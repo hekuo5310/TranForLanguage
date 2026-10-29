@@ -21,11 +21,11 @@ public final class BridgeCommands {
                 return 1;
             }))
             .then(Commands.literal("reload").executes(ctx -> operate(ctx.getSource(), runtime.get(), null, false))
-                .then(Commands.argument("id", StringArgumentType.string()).executes(ctx ->
+                .then(Commands.argument("id", StringArgumentType.greedyString()).executes(ctx ->
                     operate(ctx.getSource(), runtime.get(), StringArgumentType.getString(ctx, "id"), false))))
-            .then(Commands.literal("start").then(Commands.argument("id", StringArgumentType.string()).executes(ctx ->
+            .then(Commands.literal("start").then(Commands.argument("id", StringArgumentType.greedyString()).executes(ctx ->
                 operate(ctx.getSource(), runtime.get(), StringArgumentType.getString(ctx, "id"), false))))
-            .then(Commands.literal("stop").then(Commands.argument("id", StringArgumentType.string()).executes(ctx ->
+            .then(Commands.literal("stop").then(Commands.argument("id", StringArgumentType.greedyString()).executes(ctx ->
                 operate(ctx.getSource(), runtime.get(), StringArgumentType.getString(ctx, "id"), true)))));
         dispatcher.register(Commands.literal("tranforcpp").requires(@PERMISSION@).redirect(command));
     }

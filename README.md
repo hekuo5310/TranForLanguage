@@ -130,7 +130,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 - `/tranforlanguage stop <id>`：只停止指定插件。
 - `/tranforlanguage version`：显示桥接版本。
 - Spigot 保留 `/tranforcpp`、`/cpp`、`ver` 别名；`list` 使用 `.use` 权限，启动/停止/重载使用 `.reload`，版本使用 `.version`。新 `tranforlanguage.*` 权限兼容旧 `tranforcpp.*`。
-- 模组端命令要求操作员级别 2；ID 含空格时在模组命令中使用双引号。`@root` 指代兼容的根目录程序。
+- 模组端命令要求操作员级别 2；ID 占据命令剩余部分，中文、空格及 `@root` 可直接输入，无需加引号。`@root` 指代兼容的根目录程序。
 
 ## 程序权限与运行边界
 
