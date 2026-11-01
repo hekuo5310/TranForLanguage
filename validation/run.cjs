@@ -139,6 +139,9 @@ async function main() {
     await delay(2200)
     command('execute at TFLProbe run tp TFLProbe @e[type=item,sort=nearest,limit=1,distance=..10]')
     await allEvent('PlayerPickupItem')
+    // Toss velocity varies slightly; pickup can leave the player outside interaction reach.
+    command('tp TFLProbe 0.5 80 0.5')
+    await until(() => bot.entity.position.distanceTo(new Vec3(0.5, 80, 0.5)) < 0.2, 'return from pickup')
     command('setblock 1 80 0 chest')
     await delay(500)
     const chest = bot.blockAt(new Vec3(1, 80, 0))
