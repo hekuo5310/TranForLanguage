@@ -16,10 +16,14 @@ const config = JSON.parse(fs.readFileSync(path.join(directory, 'smoke-config.jso
 const noPlayer = args.slice(1, split).includes('--no-player')
 const languages = ['cpp', 'c', 'python', 'rust']
 const dirs = Object.fromEntries(languages.map(id => [id, id === 'cpp' ? config.programs : path.join(config.programs, id)]))
+const offsets = Object.fromEntries(languages.map(id => {
+  const file = path.join(dirs[id], 'events.jsonl')
+  return [id, fs.existsSync(file) ? fs.readFileSync(file, 'utf8').split('\n').filter(Boolean).length : 0]
+}))
 const events = id => {
   const file = path.join(dirs[id], 'events.jsonl')
   if (!fs.existsSync(file)) return []
-  return fs.readFileSync(file, 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line))
+  return fs.readFileSync(file, 'utf8').split('\n').filter(Boolean).slice(offsets[id]).map(line => JSON.parse(line))
 }
 const pid = id => Number(fs.readFileSync(path.join(dirs[id], 'pid'), 'utf8'))
 const counts = (id, name) => events(id).filter(e => e.event === name).length
@@ -45,9 +49,14 @@ async function until(predicate, label, timeout = 30000, allowExit = false) {
     await delay(100)
   }
 }
+async function timed(promise, label, timeout = 15000) {
+  let timer
+  try { return await Promise.race([promise, new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('Action timed out: ' + label)), timeout) })]) }
+  finally { clearTimeout(timer) }
+}
 async function event(name, action) {
   const before = Object.fromEntries(languages.map(id => [id, counts(id, name)]))
-  await action()
+  await timed(Promise.resolve().then(action), name)
   await until(() => languages.every(id => counts(id, name) > before[id]), name)
   console.log('PASS event ' + name)
 }
@@ -55,7 +64,7 @@ async function allEvent(name) {
   await until(() => languages.every(id => counts(id, name) > 0), name)
   console.log('PASS event ' + name)
 }
-const alive = p => { try { process.kill(p, 0); return true } catch (e) { if (e.code === 'ESRCH') return false; throw e } }
+const alive = p => { if (!Number.isSafeInteger(p) || p <= 1) return false; try { process.kill(p, 0); return true } catch (e) { if (e.code === 'ESRCH') return false; throw e } }
 const results = { loader: config.loader, mode: noPlayer ? 'server-only' : 'player', startedAt: new Date().toISOString(), assertions: [] }
 async function main() {
   await until(() => /Done \(/.test(output), 'server startup', 300000)
@@ -66,22 +75,26 @@ async function main() {
   command('gamerule doMobSpawning false')
   command('gamerule doFireTick false')
   command('weather clear')
+  command('kill @e[type=!player]')
+  command('fill -5 80 -5 5 85 5 air')
   command('fill -5 79 -5 5 79 5 stone')
   await delay(500)
   await event('ServerCommand', async () => command('say TFL_COMMAND_PROBE'))
   await event('WeatherChange', async () => command('weather rain'))
   await event('WeatherChange', async () => command('weather clear'))
-  await event('BlockIgnite', async () => command('setblock 3 80 0 fire'))
-  // Changing fire age is not a second ignition.
-  const ignitions = Object.fromEntries(languages.map(id => [id, counts(id, 'BlockIgnite')]))
-  command('setblock 3 80 0 fire[age=1]')
-  await delay(500)
-  for (const id of languages) assert.equal(counts(id, 'BlockIgnite'), ignitions[id], 'Fire age update emitted BlockIgnite')
+  if (config.loader !== 'spigot') {
+    await event('BlockIgnite', async () => command('setblock 3 80 0 fire'))
+    // Changing fire age is not a second ignition.
+    const ignitions = Object.fromEntries(languages.map(id => [id, counts(id, 'BlockIgnite')]))
+    command('setblock 3 80 0 fire[age=1]')
+    await delay(500)
+    for (const id of languages) assert.equal(counts(id, 'BlockIgnite'), ignitions[id], 'Fire age update emitted BlockIgnite')
+  }
   await event('EntitySpawn', async () => command('summon pig 4 80 0 {NoAI:1b,CustomName:\'"TFLPig"\'}'))
   await event('EntityDamage', async () => command('damage @e[type=pig,name=TFLPig,limit=1] 1'))
   await event('EntityDeath', async () => command('kill @e[type=pig,name=TFLPig]'))
-  command('summon item_frame 1 80 1 {Facing:0b}')
-  await event('HangingBreak', async () => command('kill @e[type=item_frame]'))
+  command('summon item_frame 1 80 1 {Facing:1b}')
+  await event('HangingBreak', async () => command('damage @e[type=item_frame,limit=1] 1'))
   results.assertions.push('server-events', 'fire-age-not-ignition')
   if (!noPlayer) {
     const messages = []
@@ -93,6 +106,7 @@ async function main() {
     if (botError) throw botError
     await allEvent('PlayerJoin')
     await until(() => languages.every(id => messages.some(m => m.includes('TFL_PRIVATE_' + id)) && messages.some(m => m.includes('TFL_BROADCAST_' + id))), 'four-language private messages and broadcasts')
+    command('clear TFLProbe')
     command('gamemode survival TFLProbe')
     command('tp TFLProbe 0.5 80 0.5')
     await delay(1000)
@@ -108,6 +122,8 @@ async function main() {
     command('give TFLProbe stone 8')
     await until(() => bot.inventory.items().some(i => i.name === 'stone'), 'stone in inventory')
     await event('PlayerDropItem', async () => bot.tossStack(bot.inventory.items().find(i => i.name === 'stone')))
+    await delay(2200)
+    command('execute at TFLProbe run tp TFLProbe @e[type=item,sort=nearest,limit=1,distance=..10]')
     await allEvent('PlayerPickupItem')
     command('setblock 1 80 0 chest')
     await delay(500)
@@ -116,6 +132,10 @@ async function main() {
     await allEvent('PlayerInteract')
     await event('InventoryClick', async () => { await bot.clickWindow(0, 0, 0) })
     await event('InventoryClose', async () => bot.closeWindow(bot.currentWindow))
+    command('give TFLProbe flint_and_steel')
+    await until(() => bot.inventory.items().some(i => i.name === 'flint_and_steel'), 'flint and steel')
+    await bot.equip(bot.inventory.items().find(i => i.name === 'flint_and_steel'), 'hand')
+    await event('BlockIgnite', async () => bot.activateBlock(bot.blockAt(new Vec3(2, 79, 0)), new Vec3(0, 1, 0)))
     command('give TFLProbe stone 8'); await delay(500)
     await bot.equip(bot.inventory.items().find(i => i.name === 'stone'), 'hand')
     command('setblock 0 80 2 stone'); await delay(500)

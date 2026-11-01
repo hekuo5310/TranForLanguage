@@ -9,7 +9,8 @@ npm ci --prefix validation --ignore-scripts
 # 先阅读 Minecraft EULA；同意后显式传入 --accept-eula。
 python3 validation/prepare.py /tmp/tfl-fabric-1.20 --loader fabric \
   --artifact adapters/fabric/build/libs/tranforlanguage-fabric-1.20-2.1.0.jar --accept-eula
-# 把官方 Fabric 服务端及匹配的 Fabric API 安装到此临时目录。
+python3 validation/install.py /tmp/tfl-fabric-1.20 --minecraft 1.20
+# 安装器会从官方渠道安装服务端和精确版本的 Fabric API。
 node validation/run.cjs /tmp/tfl-fabric-1.20 -- java -Xmx2G -jar fabric-server-launch.jar nogui
 ```
 
@@ -36,3 +37,11 @@ node validation/run.cjs /tmp/tfl-fabric-1.20 -- java -Xmx2G -jar fabric-server-l
 | ServerCommand | 执行者、命令 | 命令执行尝试，包含玩家命令 |
 
 这些测试不替代全部版本逐个开服或模组组合兼容测试。具体通过的平台、游戏版本、模式及检查项应按实际结果记录；编译矩阵通过不能填写为玩家实测通过。
+
+## CI
+
+CI 在所有编译/产物检查通过后，对 Spigot/Paper 1.20.1、Fabric 1.20、Forge 1.20.1、NeoForge 1.21.5 执行真实玩家测试，并对 Fabric/NeoForge 26.3 执行 server-only 测试。使用发行 JAR，不使用开发环境类路径；不会上传 Minecraft 程序。发布依赖这些测试通过。可用 `ci.py` 在本地复现同一入口，示例：
+
+```bash
+python3 validation/ci.py --loader fabric --minecraft 1.20 --artifact-directory adapters/fabric/build/libs --directory /tmp/tfl-smoke --accept-eula
+```
