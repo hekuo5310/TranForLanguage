@@ -31,7 +31,7 @@ def generate = tasks.register('generateAdapter') {
             if (mc.startsWith('26.')) {
                 source = source.replace('ClickType', 'ContainerInput')
             }
-            if (mc == '26.3') {
+            if (mc == '26.3' || mc.startsWith('26.3.')) {
                 source = source.replace('ItemStack;ZZ)', 'ItemStack;ZLnet/minecraft/util/Prediction;)')
                     .replace('boolean random, boolean trace', 'boolean trace, net.minecraft.util.Prediction prediction')
             }

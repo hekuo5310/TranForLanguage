@@ -7,6 +7,7 @@ const assert = require('node:assert/strict')
 const { spawn } = require('node:child_process')
 const mineflayer = require('mineflayer')
 const { Vec3 } = require('vec3')
+const { completeLines, parseEvents } = require('./json-lines.cjs')
 const args = process.argv.slice(2)
 const split = args.indexOf('--')
 if (split < 1) throw new Error('Usage: node validation/run.cjs <server-dir> [--no-player] -- <java> <server args...>')
@@ -18,12 +19,12 @@ const languages = ['cpp', 'c', 'python', 'rust']
 const dirs = Object.fromEntries(languages.map(id => [id, id === 'cpp' ? config.programs : path.join(config.programs, id)]))
 const offsets = Object.fromEntries(languages.map(id => {
   const file = path.join(dirs[id], 'events.jsonl')
-  return [id, fs.existsSync(file) ? fs.readFileSync(file, 'utf8').split('\n').filter(Boolean).length : 0]
+  return [id, fs.existsSync(file) ? completeLines(fs.readFileSync(file, 'utf8')).length : 0]
 }))
 const events = id => {
   const file = path.join(dirs[id], 'events.jsonl')
   if (!fs.existsSync(file)) return []
-  return fs.readFileSync(file, 'utf8').split('\n').filter(Boolean).slice(offsets[id]).map(line => JSON.parse(line))
+  return parseEvents(fs.readFileSync(file, 'utf8'), offsets[id])
 }
 const pid = id => Number(fs.readFileSync(path.join(dirs[id], 'pid'), 'utf8'))
 const counts = (id, name) => events(id).filter(e => e.event === name).length
@@ -72,8 +73,18 @@ async function main() {
   assert(!/Mixin apply failed|InvalidInjectionException|InjectionError/.test(output), 'Mixin application failed')
   console.log('PASS server startup, SDK actions, C/C++ without a separate SDK header, Python and Rust')
   results.assertions.push('startup', 'four-language-sdk-actions')
-  command('gamerule doMobSpawning false')
-  command('gamerule doFireTick false')
+  const distribution = path.join(directory, 'smoke-distribution.json')
+  const game = fs.existsSync(distribution) ? JSON.parse(fs.readFileSync(distribution, 'utf8')).minecraft : ''
+  const modernRules = game.startsWith('26.') || game === '1.21.11'
+  command(modernRules ? 'gamerule minecraft:spawn_mobs false' : 'gamerule doMobSpawning false')
+  command(modernRules ? 'gamerule minecraft:fire_spread_radius_around_player 0' : 'gamerule doFireTick false')
+  command('forceload add -5 -5 5 5')
+  const areaReady = () => output.includes('[Server] TFL_AREA_READY')
+  for (let attempt = 0; attempt < 150 && !areaReady(); attempt++) {
+    command('execute if loaded -5 80 -5 if loaded 5 80 5 if loaded -5 80 5 if loaded 5 80 -5 run say TFL_AREA_READY')
+    await delay(200)
+  }
+  await until(areaReady, 'loaded test chunks', 1000)
   command('weather clear')
   command('kill @e[type=!player]')
   command('fill -5 80 -5 5 85 5 air')
@@ -90,9 +101,12 @@ async function main() {
     await delay(500)
     for (const id of languages) assert.equal(counts(id, 'BlockIgnite'), ignitions[id], 'Fire age update emitted BlockIgnite')
   }
-  await event('EntitySpawn', async () => command('summon pig 4 80 0 {NoAI:1b,CustomName:\'"TFLPig"\'}'))
-  await event('EntityDamage', async () => command('damage @e[type=pig,name=TFLPig,limit=1] 1'))
-  await event('EntityDeath', async () => command('kill @e[type=pig,name=TFLPig]'))
+  await event('EntitySpawn', async () => {
+    command('summon pig 4 80 0 {NoAI:1b}')
+    command('tag @e[type=pig,sort=nearest,limit=1] add tfl_smoke_pig')
+  })
+  await event('EntityDamage', async () => command('damage @e[tag=tfl_smoke_pig,limit=1] 1'))
+  await event('EntityDeath', async () => command('kill @e[tag=tfl_smoke_pig]'))
   command('summon item_frame 1 80 1 {Facing:1b}')
   await event('HangingBreak', async () => command('damage @e[type=item_frame,limit=1] 1'))
   results.assertions.push('server-events', 'fire-age-not-ignition')

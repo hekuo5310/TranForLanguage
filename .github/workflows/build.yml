@@ -120,6 +120,7 @@ jobs:
           cache: npm
           cache-dependency-path: validation/package-lock.json
       - run: npm ci --prefix validation --ignore-scripts --no-audit --no-fund
+      - run: npm test --prefix validation
       - uses: actions/download-artifact@v4
         with:
           name: ${{ matrix.loader == 'spigot' && 'tranforlanguage-spigot' || format('tranforlanguage-{0}-{1}', matrix.loader, matrix.minecraft) }}
