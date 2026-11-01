@@ -12,6 +12,8 @@ def generate = tasks.register('generateAdapter') {
     inputs.dir('../minecraft/src/main/java')
     inputs.dir('../forge/src/main/templates')
     inputs.dir('../fabric/src/main/templates')
+    inputs.dir('../minecraft/src/main/mixins')
+    inputs.dir('../fabric/src/main/mixins')
     inputs.property('minecraft', mc)
     inputs.property('version', project.version)
     inputs.property('loader', project.name)
@@ -22,12 +24,39 @@ def generate = tasks.register('generateAdapter') {
         def shared = new File(dest, 'com/github/tranforcpp/minecraft')
         shared.mkdirs()
         new File(shared, 'BridgeCommands.java').text = file('../minecraft/src/main/java/com/github/tranforcpp/minecraft/BridgeCommands.java.template').getText('UTF-8').replace('@PERMISSION@', permission).replace('@VERSION@', project.version.toString())
+        def mixins = new File(dest, 'com/github/tranforcpp/mixin')
+        mixins.mkdirs()
+        ['PlayerDropMixin.java', 'InventoryClickMixin.java', 'DamageMixin.java'].each { name ->
+            def source = file('../minecraft/src/main/mixins/com/github/tranforcpp/mixin/' + name + '.template').getText('UTF-8')
+            if (mc.startsWith('26.')) {
+                source = source.replace('ClickType', 'ContainerInput')
+            }
+            if (mc == '26.3' || mc.startsWith('26.3.')) {
+                source = source.replace('ItemStack;ZZ)', 'ItemStack;ZLnet/minecraft/util/Prediction;)')
+                    .replace('boolean random, boolean trace', 'boolean trace, net.minecraft.util.Prediction prediction')
+            }
+            boolean serverDamage = mc.startsWith('26.') || (mc.startsWith('1.21.') && (mc.split('\\.')[2] as int) >= 2)
+            boolean vehicleBase = !(mc in ['1.20', '1.20.1', '1.20.2'])
+            def damageTargets = ['net.minecraft.world.entity.LivingEntity', 'net.minecraft.world.entity.decoration.ArmorStand',
+                'net.minecraft.world.entity.item.ItemEntity', 'net.minecraft.world.entity.boss.enderdragon.EndCrystal',
+                'net.minecraft.world.entity.decoration.ItemFrame', 'net.minecraft.world.entity.projectile.ShulkerBullet']
+            damageTargets.add(!mc.startsWith('1.20') ? 'net.minecraft.world.entity.decoration.BlockAttachedEntity' : 'net.minecraft.world.entity.decoration.HangingEntity')
+            if (vehicleBase) damageTargets.add('net.minecraft.world.entity.vehicle.VehicleEntity')
+            else damageTargets.addAll(['net.minecraft.world.entity.vehicle.AbstractMinecart', 'net.minecraft.world.entity.vehicle.Boat'])
+            source = source.replace('@DAMAGE_TARGETS@', damageTargets.collect { it + '.class' }.join(', '))
+                .replace('@HURT_METHOD@', serverDamage ? 'hurtServer' : 'hurt')
+                .replace('@HURT_LEVEL@', serverDamage ? 'net.minecraft.server.level.ServerLevel level, ' : '')
+            new File(mixins, name).setText(source, 'UTF-8')
+        }
         if (project.name == 'fabric') {
             def target = new File(dest, 'com/github/tranforcpp/fabric/TranforFabric.java')
             target.parentFile.mkdirs()
             def source = file('../fabric/src/main/templates/TranforFabric.java').getText('UTF-8')
             if (mc.startsWith('26.')) source = source.replace('ServerWorldEvents', 'ServerLevelEvents')
             target.setText(source, 'UTF-8')
+            def mixin = new File(dest, 'com/github/tranforcpp/mixin/FabricCommandMixin.java')
+            mixin.parentFile.mkdirs()
+            mixin.setText(file('../fabric/src/main/mixins/com/github/tranforcpp/mixin/FabricCommandMixin.java.template').getText('UTF-8').replace('@COMMAND_CALLBACK@', mc in ['1.20', '1.20.1'] ? 'CallbackInfoReturnable<Integer>' : 'CallbackInfo'), 'UTF-8')
         } else {
             boolean neo = project.name == 'neoforge'
             def target = new File(dest, "com/github/tranforcpp/${project.name}/TranforForge.java")
@@ -40,7 +69,25 @@ def generate = tasks.register('generateAdapter') {
         }
     }
 }
-sourceSets.main.java.srcDirs '../../core/src/main/java', '../minecraft/src/main/java', layout.buildDirectory.dir('generated/adapter')
+sourceSets.main.java.srcDirs '../../core/src/main/java', '../minecraft/src/main/java', '../minecraft/src/main/mixins', layout.buildDirectory.dir('generated/adapter')
+if (project.name == 'fabric') sourceSets.main.java.srcDir 'src/main/mixins'
+def mixinResources = tasks.register('generateMixinResources') {
+    inputs.property('loader', project.name)
+    inputs.property('minecraft', mc)
+    outputs.dir(layout.buildDirectory.dir('generated/mixin-resources'))
+    doLast {
+        def config = [required: true, minVersion: '0.8', package: 'com.github.tranforcpp.mixin', compatibilityLevel: 'JAVA_17',
+            mixins: ['ServerTickMixin', 'InventoryClickMixin', 'PlayerDropMixin', 'ItemPickupMixin', 'DamageMixin', 'HangingBreakMixin', 'BlockIgniteMixin'], injectors: [defaultRequire: 1]]
+        if (project.name == 'fabric') config.mixins.addAll(['FabricPlaceMixin', 'FabricMenuMixin', 'FabricCommandMixin'])
+        if (project.name == 'forge' && !forge_gradle_version.startsWith('7.')) config.refmap = 'tranforlanguage.refmap.json'
+        def output = layout.buildDirectory.dir('generated/mixin-resources').get().asFile
+        output.mkdirs()
+        new File(output, 'tranforlanguage.mixins.json').text = groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(config))
+    }
+}
+sourceSets.main.resources.srcDir layout.buildDirectory.dir('generated/mixin-resources')
+processResources.dependsOn mixinResources
+if (project.name != 'fabric') jar.manifest.attributes('MixinConfigs': 'tranforlanguage.mixins.json')
 compileJava.dependsOn generate
 java.toolchain.languageVersion = JavaLanguageVersion.of(java_version as int)
 tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8' }

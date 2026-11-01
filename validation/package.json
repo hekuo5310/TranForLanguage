@@ -1,0 +1,13 @@
+{
+  "name": "tranforlanguage-server-validation",
+  "private": true,
+  "version": "2.1.0",
+  "description": "Loopback-only real-server smoke tests",
+  "dependencies": {
+    "mineflayer": "4.39.0",
+    "vec3": "0.1.10"
+  },
+  "scripts": {
+    "test": "node --test json-lines.test.cjs"
+  }
+}

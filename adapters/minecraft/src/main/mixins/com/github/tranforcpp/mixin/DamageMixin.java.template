@@ -1,0 +1,19 @@
+package com.github.tranforcpp.mixin;
+import com.github.tranforcpp.minecraft.ModEvents;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.damagesource.DamageSource;
+import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.injection.*;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+/** Super calls are coalesced into one notification for a successful damage attempt. */
+@Mixin({@DAMAGE_TARGETS@})
+abstract class DamageMixin {
+    @Inject(method = "@HURT_METHOD@", at = @At("HEAD"))
+    private void tranforlanguage$before(@HURT_LEVEL@DamageSource source, float amount, CallbackInfoReturnable<Boolean> cir) {
+        ModEvents.beginDamage((Entity)(Object)this);
+    }
+    @Inject(method = "@HURT_METHOD@", at = @At("RETURN"))
+    private void tranforlanguage$after(@HURT_LEVEL@DamageSource source, float amount, CallbackInfoReturnable<Boolean> cir) {
+        ModEvents.endDamage((Entity)(Object)this, amount, cir.getReturnValueZ());
+    }
+}

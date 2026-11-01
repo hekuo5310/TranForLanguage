@@ -6,7 +6,7 @@ on:
   pull_request:
   workflow_dispatch:
 concurrency:
-  group: build-${{ github.workflow }}-${{ (github.event_name == 'push' && github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[release-v2.0.0]') && github.sha) || github.event.pull_request.number || github.ref }}
+  group: build-${{ github.workflow }}-${{ (github.event_name == 'push' && github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[release-v2.1.0]') && github.sha) || github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 permissions:
   contents: read
@@ -35,7 +35,7 @@ jobs:
           rustc --version
           cargo --version
       - name: Compile against exact Spigot API
-        run: mvn -B -ntp verify -Dspigot.version=${{ matrix.api }}-R0.1-SNAPSHOT -DskipTests=${{ matrix.api != '1.8' }}
+        run: mvn -U -B -ntp verify -Dspigot.version=${{ matrix.api }}-R0.1-SNAPSHOT -DskipTests=${{ matrix.api != '1.8' }}
       - name: Verify plugin metadata and Java 8 artifact
         run: python3 scripts/check-artifact.py spigot '${{ matrix.api }}' 8 'target/tranforlanguage-spigot-*.jar'
       - uses: actions/upload-artifact@v4
@@ -94,13 +94,64 @@ jobs:
             !adapters/${{ matrix.loader }}/build/libs/*-sources.jar
             !adapters/${{ matrix.loader }}/build/libs/*-dev.jar
           if-no-files-found: error
-  release:
-    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'push' && github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[release-v2.0.0]'))
+  smoke:
     needs: [spigot, mods]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {loader: spigot, minecraft: '1.20.1', java: '17', mode: player}
+          - {loader: fabric, minecraft: '1.20', java: '17', mode: player}
+          - {loader: forge, minecraft: '1.20.1', java: '17', mode: player}
+          - {loader: neoforge, minecraft: '1.21.5', java: '21', mode: player}
+          - {loader: fabric, minecraft: '26.3', java: '25', mode: server}
+          - {loader: neoforge, minecraft: '26.3', java: '25', mode: server}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.java }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: validation/package-lock.json
+      - run: npm ci --prefix validation --ignore-scripts --no-audit --no-fund
+      - run: npm test --prefix validation
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.loader == 'spigot' && 'tranforlanguage-spigot' || format('tranforlanguage-{0}-{1}', matrix.loader, matrix.minecraft) }}
+          path: smoke-artifact
+      - name: Run the distributable on a real local server
+        env:
+          TFL_LOADER: ${{ matrix.loader }}
+          TFL_MINECRAFT: ${{ matrix.minecraft }}
+          TFL_MODE: ${{ matrix.mode }}
+        shell: bash
+        run: |
+          options=()
+          if [[ "$TFL_MODE" == server ]]; then options+=(--no-player); fi
+          python3 validation/ci.py --loader "$TFL_LOADER" --minecraft "$TFL_MINECRAFT" --artifact-directory smoke-artifact --directory "$RUNNER_TEMP/tfl-smoke" --accept-eula "${options[@]}"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoke-${{ matrix.loader }}-${{ matrix.minecraft }}
+          path: |
+            ${{ runner.temp }}/tfl-smoke/smoke-results.json
+            ${{ runner.temp }}/tfl-smoke/smoke-server.log
+            ${{ runner.temp }}/tfl-smoke/**/events.jsonl
+            ${{ runner.temp }}/tfl-smoke/**/compile.log
+          if-no-files-found: warn
+  release:
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'push' && github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[release-v2.1.0]'))
+    needs: [spigot, mods, smoke]
     permissions:
       contents: write
     concurrency:
-      group: publish-${{ github.repository }}-${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v2.0.0' }}
+      group: publish-${{ github.repository }}-${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v2.1.0' }}
       cancel-in-progress: false
     runs-on: ubuntu-latest
     steps:
@@ -114,11 +165,11 @@ jobs:
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             tag="${GITHUB_REF#refs/tags/}"
             [[ "$tag" == "v$version" ]] || { echo "Tag does not match project version" >&2; exit 1; }
-            [[ "$tag" != "v2.0.0" ]] || { echo "v2.0.0 must be published from its verified main merge" >&2; exit 1; }
+            [[ "$tag" != "v2.1.0" ]] || { echo "v2.1.0 must be published from its verified main merge" >&2; exit 1; }
           else
             # One-time publication explicitly requested for this release merge.
-            [[ "$version" == "2.0.0" ]] || { echo "Unexpected release version" >&2; exit 1; }
-            tag="v2.0.0"
+            [[ "$version" == "2.1.0" ]] || { echo "Unexpected release version" >&2; exit 1; }
+            tag="v2.1.0"
           fi
           tag_target() {
             git ls-remote --tags origin "refs/tags/$tag" "refs/tags/$tag^{}" |

@@ -1,0 +1,16 @@
+package com.github.tranforcpp.mixin;
+import com.github.tranforcpp.minecraft.ModEvents;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.item.ItemStack;
+import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.injection.*;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+@Mixin(ServerPlayer.class)
+abstract class PlayerDropMixin {
+    @Inject(method = "drop(Lnet/minecraft/world/item/ItemStack;ZZ)Lnet/minecraft/world/entity/item/ItemEntity;", at = @At("RETURN"))
+    private void tranforlanguage$drop(ItemStack stack, boolean random, boolean trace, CallbackInfoReturnable<ItemEntity> cir) {
+        if (trace && cir.getReturnValue() != null)
+            ModEvents.emit("PlayerDropItem", ((ServerPlayer)(Object)this).getName().getString(), stack.getItem().toString());
+    }
+}
