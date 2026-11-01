@@ -17,3 +17,6 @@ type="required"
 versionRange="[${loader_version},)"
 ordering="NONE"
 side="SERVER"
+
+[[mixins]]
+config="tranforlanguage.mixins.json"

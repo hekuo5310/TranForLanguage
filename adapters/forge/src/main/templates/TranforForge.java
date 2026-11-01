@@ -27,9 +27,10 @@ public final class TranforForge {
     private void emit(String name, Object... args) { ProgramManager r = runtime; if (r != null) r.sendEvent(name, args); }
     @SubscribeEvent public void start(ServerStartedEvent event) {
         runtime = new ProgramManager(new MinecraftPlatform(event.getServer(), new File("config/tranforcpp/programs")));
+        ModEvents.attach(event.getServer(), runtime);
         runtime.reload().whenComplete((v, error) -> { if (error != null) java.util.logging.Logger.getLogger("TranForLanguage").severe(error.toString()); });
     }
-    @SubscribeEvent public void stop(ServerStoppingEvent event) { if (runtime != null) { runtime.close(); runtime = null; } }
+    @SubscribeEvent public void stop(ServerStoppingEvent event) { if (runtime != null) { ModEvents.detach(); runtime.close(); runtime = null; } }
     @SubscribeEvent public void commands(RegisterCommandsEvent event) { BridgeCommands.register(event.getDispatcher(), () -> runtime); }
     @SubscribeEvent public void join(PlayerEvent.PlayerLoggedInEvent event) { if (event.getEntity() instanceof ServerPlayer) emit("PlayerJoin", event.getEntity().getName().getString()); }
     @SubscribeEvent public void quit(PlayerEvent.PlayerLoggedOutEvent event) { if (event.getEntity() instanceof ServerPlayer) emit("PlayerQuit", event.getEntity().getName().getString()); }

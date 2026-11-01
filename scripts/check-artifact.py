@@ -41,6 +41,13 @@ with zipfile.ZipFile(files[0]) as jar:
         assert 'paper-plugin.yml' not in names
         assert not any(name.startswith('com/google/gson/') for name in names)
     else:
+        config = json.loads(jar.read('tranforlanguage.mixins.json'))
+        assert config['required'] and config['injectors']['defaultRequire'] == 1
+        for mixin in config['mixins']:
+            assert 'com/github/tranforcpp/mixin/' + mixin + '.class' in names
+        if loader == 'forge' and minecraft in ['1.20', '1.20.1', '1.20.2', '1.20.3', '1.20.4']:
+            refmap = json.loads(jar.read(config['refmap']))
+            assert refmap['mappings'], 'Legacy Forge mixin refmap is empty'
         assert 'plugin.yml' not in names
         assert not any(name.startswith('org/bukkit/') for name in names)
         if loader == 'fabric':
@@ -59,7 +66,7 @@ with zipfile.ZipFile(files[0]) as jar:
             assert descriptor['mods'][0]['displayName'] == 'TranForLanguage'
             assert descriptor['mods'][0]['version'] == project_version
             if loader == 'neoforge':
-                old_fml = minecraft == '1.21' or minecraft in ['1.21.1', '1.21.2', '1.21.3', '1.21.4']
+                old_fml = minecraft == '1.21' or minecraft in ['1.21.1', '1.21.2', '1.21.3', '1.21.4', '1.21.5']
                 if old_fml:
                     assert descriptor['modLoader'] == 'javafml'
                     assert descriptor['loaderVersion'] == '[1,)'

@@ -7,5 +7,6 @@
   "environment": "server",
   "entrypoints": {"main": ["com.github.tranforcpp.fabric.TranforFabric"]},
   "depends": {"fabricloader": ">=${loader_version}", "fabric-api": "*", "minecraft": "${minecraft_version}", "java": ">=${java_version}"},
+  "mixins": ["tranforlanguage.mixins.json"],
   "license": "Apache-2.0"
 }

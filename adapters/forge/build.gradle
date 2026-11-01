@@ -1,9 +1,18 @@
+buildscript {
+    repositories { maven { url = 'https://repo.spongepowered.org/repository/maven-public/' } }
+    dependencies { classpath 'org.spongepowered:mixingradle:0.7-SNAPSHOT' }
+}
 plugins {
     id 'java'
     id 'net.minecraftforge.gradle' version "${forge_gradle_version}"
 }
 apply from: '../../scripts/generate-adapter.gradle'
 def modernToolchain = forge_gradle_version.startsWith('7.')
+if (!modernToolchain) {
+    apply plugin: 'org.spongepowered.mixin'
+    mixin { add sourceSets.main, 'tranforlanguage.refmap.json' }
+}
+
 minecraft { mappings channel: 'official', version: minecraft_version }
 repositories {
     if (modernToolchain) {
@@ -14,6 +23,7 @@ repositories {
     mavenCentral()
 }
 dependencies {
+    if (!modernToolchain) annotationProcessor 'org.spongepowered:mixin:0.8.7:processor'
     if (modernToolchain) implementation minecraft.dependency("net.minecraftforge:forge:${minecraft_version}-${loader_version}")
     else minecraft "net.minecraftforge:forge:${minecraft_version}-${loader_version}"
 }

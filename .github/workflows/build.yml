@@ -6,7 +6,7 @@ on:
   pull_request:
   workflow_dispatch:
 concurrency:
-  group: build-${{ github.workflow }}-${{ (github.event_name == 'push' && github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[release-v2.0.0]') && github.sha) || github.event.pull_request.number || github.ref }}
+  group: build-${{ github.workflow }}-${{ (github.event_name == 'push' && github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[release-v2.1.0]') && github.sha) || github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 permissions:
   contents: read
@@ -95,12 +95,12 @@ jobs:
             !adapters/${{ matrix.loader }}/build/libs/*-dev.jar
           if-no-files-found: error
   release:
-    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'push' && github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[release-v2.0.0]'))
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'push' && github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[release-v2.1.0]'))
     needs: [spigot, mods]
     permissions:
       contents: write
     concurrency:
-      group: publish-${{ github.repository }}-${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v2.0.0' }}
+      group: publish-${{ github.repository }}-${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v2.1.0' }}
       cancel-in-progress: false
     runs-on: ubuntu-latest
     steps:
@@ -114,11 +114,11 @@ jobs:
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             tag="${GITHUB_REF#refs/tags/}"
             [[ "$tag" == "v$version" ]] || { echo "Tag does not match project version" >&2; exit 1; }
-            [[ "$tag" != "v2.0.0" ]] || { echo "v2.0.0 must be published from its verified main merge" >&2; exit 1; }
+            [[ "$tag" != "v2.1.0" ]] || { echo "v2.1.0 must be published from its verified main merge" >&2; exit 1; }
           else
             # One-time publication explicitly requested for this release merge.
-            [[ "$version" == "2.0.0" ]] || { echo "Unexpected release version" >&2; exit 1; }
-            tag="v2.0.0"
+            [[ "$version" == "2.1.0" ]] || { echo "Unexpected release version" >&2; exit 1; }
+            tag="v2.1.0"
           fi
           tag_target() {
             git ls-remote --tags origin "refs/tags/$tag" "refs/tags/$tag^{}" |

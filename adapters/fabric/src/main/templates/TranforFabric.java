@@ -23,9 +23,10 @@ public final class TranforFabric implements ModInitializer {
     public void onInitialize() {
         ServerLifecycleEvents.SERVER_STARTED.register(server -> {
             runtime = new ProgramManager(new MinecraftPlatform(server, FabricLoader.getInstance().getGameDir().resolve("config/tranforcpp/programs").toFile()));
+            ModEvents.attach(server, runtime);
             runtime.reload().whenComplete((v, error) -> { if (error != null) java.util.logging.Logger.getLogger("TranForLanguage").severe(error.toString()); });
         });
-        ServerLifecycleEvents.SERVER_STOPPING.register(server -> { if (runtime != null) { runtime.close(); runtime = null; } });
+        ServerLifecycleEvents.SERVER_STOPPING.register(server -> { if (runtime != null) { ModEvents.detach(); runtime.close(); runtime = null; } });
         CommandRegistrationCallback.EVENT.register((dispatcher, access, environment) -> BridgeCommands.register(dispatcher, () -> runtime));
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> event("PlayerJoin", handler.getPlayer().getName().getString()));
         ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> event("PlayerQuit", handler.getPlayer().getName().getString()));
