@@ -19,15 +19,29 @@ public final class JavaLanguageProvider implements LanguageProvider {
             mainClass = value.getAsString();
         }
         File sdk = ProgramFiles.sdk(directory, "java/tranforlanguage/TranForLanguage.java");
+        File maven = new File(directory, "pom.xml");
+        File dependencies = new File(directory, ".tranforlanguage/java-dependencies");
+        if (maven.isFile()) {
+            ProgramFiles.cached(dependencies, "maven-dependency-plugin:3.7.1", () -> {
+                ProgramFiles.build(directory, Arrays.asList(
+                    System.getProperty("tranforlanguage.maven", "mvn"), "-B", "-ntp", "-f", maven.getAbsolutePath(),
+                    "org.apache.maven.plugins:maven-dependency-plugin:3.7.1:copy-dependencies",
+                    "-DincludeScope=runtime", "-DoutputDirectory=" + dependencies.getAbsolutePath()),
+                    300);
+            }, maven);
+            logger.info("Java Maven dependencies ready");
+        }
+        String classpath = new File(directory, "lib/*").getAbsolutePath() + File.pathSeparator
+            + new File(dependencies, "*").getAbsolutePath();
         File classes = new File(directory, ".tranforlanguage/java-classes");
         ProgramFiles.deleteTree(classes); Files.createDirectories(classes.toPath());
         List<String> args = new ArrayList<>(Arrays.asList(ProgramFiles.jdkTool("tranforlanguage.javac", "javac"),
-            "-encoding", "UTF-8", "-d", classes.getAbsolutePath(), sdk.getAbsolutePath()));
+            "-encoding", "UTF-8", "-cp", classpath, "-d", classes.getAbsolutePath(), sdk.getAbsolutePath()));
         for (File source : sources) args.add(source.getAbsolutePath());
         ProgramFiles.build(directory, args, 180);
         logger.info("Java compilation complete: " + sources.length + " source(s)");
         return new LaunchCommand(directory, Arrays.asList(ProgramFiles.jdkTool("tranforlanguage.java", "java"),
             "-Dfile.encoding=UTF-8", "-Dstdout.encoding=UTF-8", "-Dstderr.encoding=UTF-8", "-Xss2m",
-            "-cp", classes.getAbsolutePath(), mainClass));
+            "-cp", classes.getAbsolutePath() + File.pathSeparator + classpath, mainClass));
     }
 }
