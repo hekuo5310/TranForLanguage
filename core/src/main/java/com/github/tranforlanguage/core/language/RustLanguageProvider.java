@@ -22,16 +22,16 @@ public final class RustLanguageProvider implements LanguageProvider {
             + "\n[dependencies]\ntranforlanguage={path=" + gson.toJson(sdk.getAbsolutePath()) + "}\n";
         File userManifest = new File(directory, "Cargo.toml");
         if (userManifest.isFile()) {
-            // Keep the author's standard Cargo dependencies, but build from the managed directory.
             String custom = new String(Files.readAllBytes(userManifest.toPath()), StandardCharsets.UTF_8);
-            String sdkDependency = "tranforlanguage={path=" + gson.toJson(sdk.getAbsolutePath()) + "}\\n";
-            if (custom.matches("(?s).*\\\\[dependencies\\\\].*")) {
-                custom = custom.replaceFirst("(?m)^\\\\[dependencies\\\\]\\\\s*$",
-                    java.util.regex.Matcher.quoteReplacement("[dependencies]\\n" + sdkDependency));
-            } else custom += "\\n[dependencies]\\n" + sdkDependency;
-            // Append an explicit entrypoint; default src/main.rs in the user's manifest is not used.
-            manifest = custom + "\\n[[bin]]\\nname=\\\"tranforlanguage_program\\\"\\npath="
-                + gson.toJson(source.getAbsolutePath()) + "\\n";
+            String sdkDependency = "tranforlanguage={path=" + gson.toJson(sdk.getAbsolutePath()) + "}\n";
+            int dependencies = custom.indexOf("[dependencies]");
+            if (dependencies >= 0) {
+                int after = dependencies + "[dependencies]".length();
+                custom = custom.substring(0, after) + "\n" + sdkDependency + custom.substring(after);
+            } else custom += "\n[dependencies]\n" + sdkDependency;
+            // Use the user's Cargo metadata/dependencies, with a managed binary target.
+            manifest = custom + "\n[[bin]]\nname=\"tranforlanguage_program\"\npath="
+                + gson.toJson(source.getAbsolutePath()) + "\n";
         }
         File cargoManifest = new File(project, "Cargo.toml");
         Files.write(cargoManifest.toPath(), manifest.getBytes(StandardCharsets.UTF_8));
