@@ -144,9 +144,16 @@ Spigot 权限：`tranforlanguage.use`（list）、`tranforlanguage.reload`（启
 | `PlayerToggleFlight` | 玩家, `true`/`false` | ✓ | ✓ | |
 | `PlayerBedEnter` | 玩家 | ✓ | ✓ | 只在真正入睡时 |
 | `PlayerBedLeave` | 玩家 | ✓ | ✓ | |
+| `PlayerItemHeld` | 玩家, 原槽位, 新槽位 | ✓ | ✓ | 快捷栏槽位 0–8 |
+| `PlayerFoodLevelChange` | 玩家, 原饥饿值, 新饥饿值 | ✓ | ✓ | Spigot 只报告进食、消耗等自然变化；模组报告任何变化 |
+| `PlayerVehicleEnter` | 玩家, 载具类型 | ✓ | ✓ | 船、矿车、马、猪等 |
+| `PlayerVehicleExit` | 玩家, 载具类型 | ✓ | ✓ | |
+| `PlayerToggleGlide` | 玩家, `true`/`false` | ✓（1.9+） | ✓ | 鞘翅滑翔 |
+| `PlayerToggleSwim` | 玩家, `true`/`false` | ✓（1.13+） | ✓ | 游泳姿势 |
+| `PlayerCraftItem` | 玩家, 物品 | ✓ | ✓ | 从合成栏取出成品 |
+| `PlayerItemConsume` | 玩家, 物品 | ✓ | ✓ | 吃、喝等使用完成 |
+| `PlayerAdvancement` | 玩家, 进度 ID | ✓（1.12+） | ✓ | 进度完成时一次，如 `minecraft:story/mine_stone`；包括配方解锁进度 |
 | `PlayerKick` | 玩家, 原因 | ✓ | — | |
-| `PlayerItemConsume` | 玩家, 物品 | ✓ | — | 吃、喝 |
-| `PlayerAdvancement` | 玩家, 进度 ID | ✓（1.12+） | — | 如 `minecraft:story/mine_stone` |
 
 ### 5.2 方块、实体、物品栏
 
@@ -183,6 +190,7 @@ Spigot 权限：`tranforlanguage.use`（list）、`tranforlanguage.reload`（启
 ### 5.5 值的格式与平台差异
 
 - **名称格式因平台而异**：Spigot 使用 Bukkit 名称（方块 `STONE`、世界 `world_nether`）；模组使用游戏内部表示（方块 `Block{minecraft:stone}`、世界 `ResourceKey[minecraft:dimension / minecraft:the_nether]`）。跨平台插件请不要依赖具体字符串格式，或自行做兼容。
+- **模组端的实现方式**：状态类事件（切换世界、模式、等级、潜行/疾跑/飞行/滑翔/游泳、睡觉、快捷栏、饥饿值、载具、雷暴）每 tick 比较一次状态；食用、合成、进度通过 Mixin 在游戏逻辑中直接通知。
 - **状态类事件的含义**：Spigot 上这些事件来自 Bukkit 事件，只在变化真正生效时发送（被其他插件取消的不发送）；模组端每个服务器 tick 比较一次玩家/世界状态，变化后发送。因此模组端在一个 tick 内发生又恢复的变化不会被报告，玩家加入时的初始状态也不会作为“变化”发送。
 - 某平台缺少对应回调时，事件不会被伪造（上表中的 “—”）。
 
@@ -196,6 +204,44 @@ Spigot 权限：`tranforlanguage.use`（list）、`tranforlanguage.reload`（启
 | `executeCommand(command)` | 以**控制台权限**执行命令，不带开头的 `/` |
 
 各语言的函数名见[第 8 节](#8-各语言-sdk-速查)。所有动作都是异步排队的，函数返回不代表已经在游戏中执行。
+
+### 6.1 游戏操作（`@server`）
+
+需要结果或错误反馈的游戏操作通过保留调用目标 `@server` 完成，三个平台行为一致。各 SDK 提供 `server(方法, 参数...)`（Go 为 `Server`，C 为 `tranforlanguage_server`），等价于 `call("@server", 方法, 参数...)`：成功时返回结果字符串，失败时抛出 / 返回该语言的调用错误。操作在服务器线程执行。
+
+| 方法 | 参数 | 返回 | 说明 |
+| --- | --- | --- | --- |
+| `players` | — | JSON 数组 | 在线玩家名 |
+| `playerInfo` | 玩家 | JSON 对象 | `name`、`uuid`、`world`、`x`、`y`、`z`、`health`、`food`、`level`、`gameMode` |
+| `teleport` | 玩家, x, y, z[, 世界] | — | 省略世界时在当前世界内传送 |
+| `giveItem` | 玩家, 物品 ID[, 数量] | — | 如 `minecraft:diamond`，默认 1 个；放不下的掉落在脚下 |
+| `clearInventory` | 玩家 | — | 清空物品栏 |
+| `setHealth` | 玩家, 血量 | — | 不超过最大生命值 |
+| `setFood` | 玩家, 饥饿值 | — | 0–20 |
+| `setGameMode` | 玩家, 模式 | — | `survival` / `creative` / `adventure` / `spectator` |
+| `sendTitle` | 玩家, 标题[, 副标题] | — | |
+| `sendActionBar` | 玩家, 文本 | — | Spigot 需要 1.9+ |
+| `getBlock` | 世界, x, y, z | 方块 ID | 如 `minecraft:stone` |
+| `setBlock` | 世界, x, y, z, 方块 ID | — | |
+| `kick` | 玩家[, 原因] | — | |
+
+```python
+import json, sys
+from tranforlanguage import server, CallError
+
+info = json.loads(server("playerInfo", "Alex"))
+server("teleport", "Alex", 0, 80, 0)
+server("giveItem", "Alex", "minecraft:diamond", 3)
+try:
+    server("setBlock", "world", 0, 64, 0, "minecraft:not_a_block")
+except CallError as error:
+    print(error, file=sys.stderr)   # 未知方块等错误会返回给调用方
+```
+
+- **世界名**：Spigot 使用 Bukkit 世界名（`world`、`world_nether`）；模组使用维度 ID（`minecraft:overworld`、`minecraft:the_nether`），也接受事件里报告的 `ResourceKey[...]` 形式。
+- **物品 / 方块 ID**：统一使用命名空间 ID（`minecraft:diamond`，可省略 `minecraft:`）。Spigot 1.13 以下按旧版材质名匹配。
+- **文本**：Spigot 的标题、动作栏和踢出原因支持 MiniMessage 格式；模组端为纯文本。
+- 这些操作不会触发 `ServerCommand` 事件；会改变状态的操作照常触发相应事件（例如 `setGameMode` 触发 `PlayerGameModeChange`）。
 
 ## 7. 程序间调用
 
@@ -221,7 +267,7 @@ Spigot 权限：`tranforlanguage.use`（list）、`tranforlanguage.reload`（启
 ### Python
 
 ```python
-from tranforlanguage import (on, handle, subscribe, run, call, notify, publish,
+from tranforlanguage import (on, handle, subscribe, run, call, server, notify, publish,
                              broadcast, send_message, console, dispatch_command,
                              program_id, CallError)
 
@@ -245,6 +291,7 @@ t.on('PlayerChat', (player, message) => { /* 可以是 async */ });
 t.handle('greet', async (name) => 'hi ' + name);
 t.subscribe('news', (sender, text) => {});
 const result = await t.call('other', 'greet', 'Alex');  // 返回 Promise，失败时抛出 t.CallError
+const info = JSON.parse(await t.server('playerInfo', 'Alex'));
 t.broadcast('x'); t.sendMessage(p, 'x'); t.console('x'); t.dispatchCommand('say x');
 t.run();
 ```
@@ -258,6 +305,7 @@ t.On("PlayerChat", func(args []string) {})
 t.Handle("greet", func(args []string) (string, error) { return "hi " + args[0], nil })
 t.Subscribe("news", func(from string, args []string) {})
 result, err := t.Call("other", "greet", "Alex")   // err 为 *t.CallError
+info, err := t.Server("playerInfo", "Alex")
 t.Broadcast("x"); t.SendMessage(p, "x"); t.Console("x"); t.DispatchCommand("say x")
 t.Run()
 ```
@@ -265,7 +313,8 @@ t.Run()
 ### Rust
 
 ```rust
-use tranforlanguage::{run, handle, call, notify, publish, broadcast, send_message, console, dispatch_command, program_id};
+use tranforlanguage::{run, handle, call, server, notify, publish, broadcast, send_message, console, dispatch_command, program_id};
+// server("teleport", &["Alex", "0", "80", "0"])?;
 
 handle("greet", |args| Ok(format!("hi {}", args[0])));
 run(|event| {
@@ -285,6 +334,7 @@ TranForLanguage.on('PlayerChat') { |player, message| }
 TranForLanguage.handle('greet') { |name| "hi #{name}" }
 TranForLanguage.subscribe('news') { |sender, text| }
 TranForLanguage.call('other', 'greet', 'Alex')   # 失败时抛出 TranForLanguage::CallError
+TranForLanguage.server('giveItem', 'Alex', 'minecraft:diamond', 3)
 TranForLanguage.broadcast('x'); TranForLanguage.send_message(p, 'x')
 TranForLanguage.console('x'); TranForLanguage.dispatch_command('say x')
 TranForLanguage.run
@@ -298,6 +348,7 @@ TranForLanguage::on('PlayerChat', function ($player, $message) {});
 TranForLanguage::handle('greet', fn($name) => "hi $name");
 TranForLanguage::subscribe('news', function ($sender, $text) {});
 TranForLanguage::call('other', 'greet', 'Alex');  // 失败时抛出 TranForLanguageCallError
+TranForLanguage::server('setGameMode', 'Alex', 'creative');
 TranForLanguage::broadcast('x'); TranForLanguage::sendMessage($p, 'x');
 TranForLanguage::console('x'); TranForLanguage::dispatchCommand('say x');
 TranForLanguage::run();
@@ -312,6 +363,7 @@ TranForLanguage.on("PlayerChat", args -> {});
 TranForLanguage.handle("greet", args -> "hi " + args[0]);
 TranForLanguage.subscribe("news", (from, args) -> {});
 String r = TranForLanguage.call("other", "greet", "Alex");  // 失败时抛出 TranForLanguage.CallError
+TranForLanguage.server("teleport", "Alex", 0, 80, 0);
 TranForLanguage.broadcast("x"); TranForLanguage.sendMessage(p, "x");
 TranForLanguage.console("x"); TranForLanguage.dispatchCommand("say x");
 TranForLanguage.run();
@@ -332,6 +384,7 @@ int main(void) {
     return tranforlanguage_run(on_event, NULL);
 }
 /* 调用：char *out; int ok = tranforlanguage_call("other", "greet", 1, (const char *[]){"Alex"}, &out); free(out); */
+/* 游戏操作：tranforlanguage_server("players", 0, NULL, &out); */
 ```
 
 ### C++
@@ -342,6 +395,7 @@ int main() {
     return tranforlanguage::run([](const tranforlanguage_event& e) {
         if (std::string(e.event) == "PlayerJoin") {
             std::string r = tranforlanguage::call("other", "greet", {e.args[0]});  // 失败抛出 tranforlanguage::CallError
+            tranforlanguage::server("giveItem", {e.args[0], "minecraft:bread"});
             broadcast(r.c_str());
         }
     });
@@ -403,10 +457,16 @@ python3 scripts/check-artifact.py fabric 1.21.1 21 'adapters/fabric/build/libs/*
 ### 10.4 添加一个事件
 
 1. **Spigot**：在 `ProcessManager` 中添加 `@EventHandler`。只在新版本才有的 Bukkit 事件用 `optional(...)` 按类名注册，并通过反射访问新 API，保持 1.8 基线可编译。
-2. **模组**：优先在 `ModEvents.tick` 中比较状态（不需要新 Mixin，跨版本最稳定）；需要拦截游戏逻辑时再加 Mixin（`adapters/minecraft/src/main/mixins/`），版本差异用 `.template` 文件和 `generate-adapter.gradle` 中的替换处理。
+2. **模组**：优先在 `ModEvents.tick` 中比较状态（不需要新 Mixin，跨版本最稳定）；需要拦截游戏逻辑时再加 Mixin（`adapters/minecraft/src/main/mixins/`，并加入 `generate-adapter.gradle` 的 Mixin 列表）。版本差异用 `.template` 文件和 `generate-adapter.gradle` 中的替换处理；只是成员名或可见性变化时，放进 `Versions.java.template`。
+
+### 10.5 添加一个 `@server` 方法
+
+1. Spigot：在 `SpigotServerApi` 中实现；模组：在 `MinecraftPlatform.serverCall` 中实现。参数用 `ServerArgs` 读取，以保证错误信息一致；失败时抛出 `IllegalArgumentException`。
+2. 模组端涉及跨版本变化的 API 时，优先通过 Brigadier 执行原版命令（`command(...)`），并严格校验拼入命令的参数。
+3. 在 `ProgramManagerTest` / `validation/run.cjs` 中加入测试，更新本文 6.1 节。
 3. 事件名使用 PascalCase，参数全部是字符串，同一事件在各平台的参数顺序必须一致。
 4. 更新本文第 5 节和 [兼容说明](compatibility.md) 的事件表。
 
-### 10.5 发布
+### 10.6 发布
 
 版本号在 `pom.xml` 中定义，模组构建也读取它。CI 只在推送到 main 的提交信息包含 `[release-v<版本>]` 标记时创建标签并发布；合并 PR 前请确认最终提交信息里有这个标记。
