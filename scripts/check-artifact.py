@@ -19,7 +19,7 @@ with zipfile.ZipFile(files[0]) as jar:
     names = set(jar.namelist())
     for resource in ['cpp/tranforlanguage.hpp', 'c/tranforlanguage.h', 'c/tranforlanguage_rpc.h', 'c/rpc.c', 'python/bootstrap.py', 'python/tranforlanguage.py',
                      'rust/Cargo.toml', 'rust/src/lib.rs', 'javascript/tranforlanguage.js', 'go/go.mod', 'go/tranforlanguage.go',
-                     'ruby/tranforlanguage.rb', 'php/tranforlanguage.php', 'java/tranforlanguage/TranForLanguage.java']:
+                     'ruby/tranforlanguage.rb', 'php/tranforlanguage.php', 'php/composer_bootstrap.php', 'java/tranforlanguage/TranForLanguage.java']:
         assert 'sdk/' + resource in names, 'Missing bundled SDK: ' + resource
     assert 'LICENSE' in names, 'Missing project license'
     assert 'com/github/tranforlanguage/core/ProgramRuntime.class' in names
