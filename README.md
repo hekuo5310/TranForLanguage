@@ -45,6 +45,12 @@ gradle -p adapters/forge clean build
 
 也可从 GitHub Actions 下载按平台/游戏版本区分的产物。常规版本通过与项目版本一致的 `v*` 标签发布；本次 2.2.2 由 main 分支上带 `[release-v2.2.2]` 标记的提交在完整构建通过后自动创建标签并发布，不覆盖指向其他提交的标签。标记必须出现在最终推送到 main 的提交信息里，合并 PR 前请检查 GitHub 显示的提交信息；该版本不能通过手动推送标签发布。
 
+## 第三方依赖（按需自动安装）
+
+TFL 插件可以继续使用各语言原生的依赖清单：Python 的 `requirements.txt`、JavaScript 的 `package.json`、Rust 的 `Cargo.toml`、Go 的 `go.mod`、Ruby 的 `Gemfile`、PHP 的 `composer.json`、Java 的 `pom.xml` 或 `lib/*.jar`。C / C++ 可以在 `program.json` 中指定 `"pkgConfig":["zlib"]`，自动读取预装系统库的编译与链接选项。
+
+依赖在插件启动或重载时按需准备；没有依赖清单的插件保持原行为。Python、npm、Bundler、Composer 使用每个插件私有的 `.tranforlanguage/` 缓存，Go、Rust、Maven 使用原生构建缓存。服主需提前安装相应包管理器，C / C++ 的系统开发库不会被自动安装。详细示例和限制见 [开发文档：第三方依赖](docs/development.md#34-第三方依赖可选)。
+
 ## 安装程序
 
 | 平台 | 程序目录 |
