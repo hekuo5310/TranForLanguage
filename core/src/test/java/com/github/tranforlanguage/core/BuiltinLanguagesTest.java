@@ -49,6 +49,35 @@ public class BuiltinLanguagesTest {
         receive(TEXT);
         assertFalse(new File(platform.dir, "tranforlanguage.py").exists());
     }
+    @Test public void pythonRequirementsCreateIsolatedEnvironmentAndReloadOnChanges() throws Exception {
+        write("requirements.txt", "# empty dependency list\n");
+        write("main.py", "import sys\nfrom tranforlanguage import broadcast,run\nbroadcast('venv' if sys.prefix != sys.base_prefix else 'global')\nrun()\n");
+        runtime.reload().get(180, TimeUnit.SECONDS);
+        receive("venv");
+        File stamp = new File(platform.dir, ".tranforlanguage/python-venv/.tfl-requirements");
+        assertTrue(stamp.isFile());
+        String original = new String(Files.readAllBytes(stamp.toPath()), StandardCharsets.UTF_8);
+        write("requirements.txt", "# changed dependency list\n");
+        runtime.reload().get(180, TimeUnit.SECONDS);
+        receive("venv");
+        assertNotEquals(original, new String(Files.readAllBytes(stamp.toPath()), StandardCharsets.UTF_8));
+    }
+    @Test public void javascriptPackageManifestIsInstalledWithoutModifyingSource() throws Exception {
+        write("package.json", "{\"name\":\"tfl-test\",\"version\":\"1.0.0\",\"dependencies\":{}}\n");
+        write("main.js", "const t=require('tranforlanguage');t.broadcast('npm');t.run();\n");
+        runtime.reload().get(180, TimeUnit.SECONDS);
+        receive("npm");
+        assertTrue(new File(platform.dir, ".tranforlanguage/node-project/.tfl-dependencies").isFile());
+        assertFalse(new File(platform.dir, "node_modules").exists());
+    }
+    @Test public void goUsesPluginModuleWithoutRewritingIt() throws Exception {
+        String module = "module example.com/plugin\n\ngo 1.21\n";
+        write("go.mod", module);
+        write("main.go", "package main\nimport t \"tranforlanguage\"\nfunc main(){t.Broadcast(\"go.mod\");t.Run()}\n");
+        runtime.reload().get(300, TimeUnit.SECONDS);
+        receive("go.mod");
+        assertEquals(module, new String(Files.readAllBytes(new File(platform.dir, "go.mod").toPath()), StandardCharsets.UTF_8));
+    }
     @Test public void rustCompilesWithBundledCrateAndReceivesUnicodeEvent() throws Exception {
         write("main.rs", "use tranforlanguage::{run,broadcast};fn main(){run(|e|{if e.event==\"PlayerJoin\"{broadcast(&e.args[0]).unwrap();}}).unwrap();}\n");
         try { runtime.reload().get(310, TimeUnit.SECONDS); }
