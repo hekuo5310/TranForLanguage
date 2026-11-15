@@ -32,7 +32,30 @@ public final class GoLanguageProvider implements LanguageProvider {
             Files.write(new File(src, "go.mod").toPath(), mod.getBytes(StandardCharsets.UTF_8));
         }
         String go = System.getProperty("tranforlanguage.go", "go");
-        // Amend only the managed copy; never modify the plugin author's go.mod.
+        // Use go's JSON representation, not regexes over go.mod syntax.
+        // Local replacements are relative to the ORIGINAL manifest, not our copied build directory.
+        if (userMod.isFile()) {
+            String json = ProgramFiles.capture(directory, Arrays.asList(go, "mod", "edit", "-json"), 30, 1048576);
+            JsonObject details = new Gson().fromJson(json, JsonObject.class);
+            JsonArray replacements = details.getAsJsonArray("Replace");
+            if (replacements != null) for (JsonElement element : replacements) {
+                JsonObject replacement = element.getAsJsonObject();
+                JsonObject old = replacement.getAsJsonObject("Old");
+                JsonObject target = replacement.getAsJsonObject("New");
+                if (target.has("Version") && !target.get("Version").isJsonNull()
+                    && !target.get("Version").getAsString().isEmpty()) continue;
+                String location = target.get("Path").getAsString();
+                if (!location.startsWith(".")) continue;
+                String module = old.get("Path").getAsString();
+                if (old.has("Version") && !old.get("Version").isJsonNull()
+                    && !old.get("Version").getAsString().isEmpty())
+                    module += "@" + old.get("Version").getAsString();
+                String absolute = new File(directory, location).getCanonicalPath().replace(File.separatorChar, '/');
+                ProgramFiles.build(directory, src, Arrays.asList(go, "mod", "edit",
+                    "-replace=" + module + "=" + absolute), Collections.emptyMap(), 30);
+            }
+        }
+        // The bundled SDK always overrides a user-supplied tranforlanguage replacement.
         ProgramFiles.build(directory, src, Arrays.asList(go, "mod", "edit",
             "-require=tranforlanguage@v0.0.0",
             "-replace=tranforlanguage=" + sdk.getAbsolutePath()), Collections.emptyMap(), 30);
