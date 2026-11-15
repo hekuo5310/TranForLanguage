@@ -2,7 +2,9 @@
 
 让 Minecraft 服务端通过统一进程协议运行 C、C++、Python、Rust、JavaScript、Go、Ruby、PHP 和 Java 程序。不同语言的插件同时运行，并能[互相调用](#程序间互相调用)。
 
-编写插件请看 **[开发文档](docs/development.md)**：快速开始、`program.json` 参考、全部 34 个事件及参数、各语言 SDK 速查和排错。
+编写插件请看 **[开发文档](docs/development.md)**：快速开始、`program.json` 参考、全部 34 个事件及参数、第三方依赖管理、各语言 SDK 速查和排错。
+
+**可选的插件依赖**：Python `requirements.txt`、Node.js `package.json`、Rust `Cargo.toml`、Go `go.mod`、Ruby `Gemfile`、PHP `composer.json`、Java `lib/*.jar`/`pom.xml`，以及 C/C++ 的 `pkg-config`。无清单时保持原来的零配置行为；详情见[依赖管理说明](docs/development.md#34-第三方依赖可选)。
 
 ## 平台与构建
 
