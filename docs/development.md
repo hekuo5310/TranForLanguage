@@ -98,6 +98,47 @@ SDK 由服务端自动提供，不需要复制任何 SDK 文件，也不需要�
 | `command` | 字符串数组 | `process` 语言的完整命令，直接执行，不经过 shell。 |
 | `events` | 字符串数组 | 只接收列出的事件；省略表示接收全部；空数组表示不接收游戏事件（仍会收到 `shutdown`）。要接收其他插件发布的消息，需要包含 `"message"`。程序间调用不受此过滤影响。 |
 
+### 3.4 第三方依赖（可选）
+
+TFL 在插件启动 / 重载的**准备阶段**检查依赖声明。未声明依赖的现有插件保持原来的执行方式；声明了依赖时，根据语言使用各自生态的工具，**无需在服务器上手动安装 Python/Node 等库**。首次安装通常需要访问对应的包仓库，依赖安装失败时插件显示 `FAILED`，具体输出位于 `compile.log`。
+
+| 语言 | 插件目录中的依赖声明 | 处理方式与要求 |
+| --- | --- | --- |
+| Python | `requirements.txt` | 系统需有带 `venv`/`pip` 的 Python 3.8+；为每个插件建立 `.tranforlanguage/python-venv/`，通过 `pip install -r` 安装 |
+| JavaScript | `package.json`（可附 `package-lock.json`） | 需要 npm；在独立的 `node-project/` 安装 `node_modules`；有 lock 文件时使用 `npm ci`，否则 `npm install` |
+| Rust | `Cargo.toml`（可附 `Cargo.lock`） | 使用 Cargo 的依赖声明；TFL 在生成的构建清单中注入内置 SDK，构建缓存由 Cargo 管理 |
+| Go | `go.mod`（可附 `go.sum`） | 复制清单到构建目录，并通过 `go mod edit` 强制将 `tranforlanguage` 指向内置 SDK；使用 Go 模块缓存 |
+| Ruby | `Gemfile`（可附 `Gemfile.lock`） | 需要 Bundler；在独立的 `ruby-project/` 安装 gems，使用 `bundle exec` 运行 |
+| PHP | `composer.json`（可附 `composer.lock`） | 需要 Composer；在独立的 `php-project/` 安装 `vendor`，启动时先加载 SDK 与 Composer autoload |
+| Java | `pom.xml` 或插件目录中的 `lib/*.jar` | `pom.xml` 需要 Maven；通过 Maven Dependency Plugin 解析运行时依赖，加入 `javac` 和 Java 进程 classpath；`lib/*.jar` 可直接使用 |
+| C / C++ | `program.json` 中的 `pkgConfig` | 需要 `pkg-config` 和**已由服主安装**的开发库；编译时自动读取 `--cflags` / `--libs` |
+| process | 自定义 `command` | 仍由作者自行管理依赖 |
+
+Python 示例：
+
+```text
+programs/hello/
+├── main.py
+└── requirements.txt   # 例如：requests==2.32.3
+```
+
+C / C++ 示例（需在服务器上先安装 zlib 的开发包）：
+
+```json
+{
+  "language": "c",
+  "pkgConfig": ["zlib"]
+}
+```
+
+**缓存与安全：**
+
+- Python、JavaScript、Ruby、PHP 依赖目录位于各插件自己的 `.tranforlanguage/` 下，依赖清单及锁文件不变时重载会复用现有安装；变更后重新创建，避免残留已移除的依赖。其他编译型语言使用其官方构建缓存。
+- TFL 将依赖声明复制到独立的构建目录，不修改作者提供的 `requirements.txt`、`package.json`、`Cargo.toml`、`go.mod` 等文件。需要通过相对路径引用**本地包**时，注意 npm / Cargo / Bundler / Composer 的清单将在 `.tranforlanguage/` 下解析；优先使用正式的仓库依赖或明确的绝对路径。
+- npm 使用 `--ignore-scripts`，Composer 使用 `--no-scripts --no-plugins`；依赖有构建脚本 / 插件时，可能需要自行预先构建兼容的包。其它安装器仍可能执行依赖包含的代码，请只安装可信依赖。
+- 不会自动以系统权限安装 C/C++ 库，不会自动重启其他插件。缺失包管理器、下载超时、依赖不兼容均会阻止**该插件**启动。
+- 可通过 JVM 参数指定可执行文件：`-Dtranforlanguage.python=`、`-Dtranforlanguage.npm=`、`-Dtranforlanguage.bundle=`、`-Dtranforlanguage.composer=`、`-Dtranforlanguage.maven=`、`-Dtranforlanguage.pkg-config=`，以及原有语言工具链参数。
+
 ## 4. 生命周期与命令
 
 | 状态 | 含义 |
