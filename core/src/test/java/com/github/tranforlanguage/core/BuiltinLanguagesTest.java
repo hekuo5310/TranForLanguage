@@ -138,7 +138,7 @@ public class BuiltinLanguagesTest {
         File archive = new File(platform.dir, "tfl-offline-dependency-1.0.0.tgz");
         assertTrue("npm pack did not create a tarball", archive.isFile());
         write("package.json", "{\"name\":\"tfl-test\",\"version\":\"1.0.0\",\"dependencies\":{\"tfl-offline-dependency\":\""
-            + archive.toURI().toASCIIString() + "\"}}");
+            + "file:../../tfl-offline-dependency-1.0.0.tgz" + "\"}}");
         write("main.js", "const t=require('tranforlanguage');t.broadcast(require('tfl-offline-dependency'));t.run();\n");
         reloadWithDiagnostics(120);
         File installed = new File(platform.dir, ".tranforlanguage/node-project/node_modules/tfl-offline-dependency");
@@ -167,7 +167,7 @@ public class BuiltinLanguagesTest {
     }
 
     @Test public void rustUsesAdditionalCargoDependencies() throws Exception {
-        File dep = new File(platform.dir, "rust-library");
+        File dep = temporary.newFolder("standalone-rust-library");
         File src = new File(dep, "src");
         assertTrue(src.mkdirs());
         Files.write(new File(dep, "Cargo.toml").toPath(),
