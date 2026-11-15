@@ -93,6 +93,8 @@ async function main() {
   await event('ServerCommand', async () => command('say TFL_COMMAND_PROBE'))
   await event('WeatherChange', async () => command('weather rain'))
   await event('WeatherChange', async () => command('weather clear'))
+  await event('ThunderChange', async () => command('weather thunder'))
+  await event('ThunderChange', async () => command('weather clear'))
   if (config.loader !== 'spigot') {
     await event('BlockIgnite', async () => command('setblock 3 80 0 fire'))
     // Changing fire age is not a second ignition.
@@ -109,7 +111,7 @@ async function main() {
   await event('EntityDeath', async () => command('kill @e[tag=tfl_smoke_pig]'))
   command('summon item_frame 1 80 1 {Facing:1b}')
   await event('HangingBreak', async () => command('damage @e[type=item_frame,limit=1] 1'))
-  results.assertions.push('server-events', 'fire-age-not-ignition')
+  results.assertions.push('server-events', 'thunder-change', 'fire-age-not-ignition')
   if (!noPlayer) {
     const messages = []
     bot = mineflayer.createBot({ host: '127.0.0.1', port: config.port, username: 'TFLProbe', auth: 'offline', version: false })
@@ -125,6 +127,9 @@ async function main() {
     command('tp TFLProbe 0.5 80 0.5')
     await delay(1000)
     await event('PlayerChat', async () => bot.chat('TFL_CHAT_中文'))
+    await event('PlayerGameModeChange', async () => command('gamemode creative TFLProbe'))
+    await event('PlayerGameModeChange', async () => command('gamemode survival TFLProbe'))
+    await event('PlayerLevelChange', async () => command('xp add TFLProbe 3 levels'))
     await event('PlayerMove', async () => {
       bot.setControlState('forward', true); await delay(600); bot.setControlState('forward', false)
     })
@@ -163,7 +168,7 @@ async function main() {
     await allEvent('PlayerRespawn')
     await event('PlayerQuit', async () => bot.quit())
     bot = null
-    results.assertions.push('player-events', 'rotation-not-movement', 'private-messages-and-broadcasts')
+    results.assertions.push('player-events', 'game-mode-and-level-change', 'rotation-not-movement', 'private-messages-and-broadcasts')
   }
   const original = Object.fromEntries(languages.map(id => [id, pid(id)]))
   command('tranforlanguage stop c')
