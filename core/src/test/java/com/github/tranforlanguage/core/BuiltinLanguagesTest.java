@@ -139,6 +139,79 @@ public class BuiltinLanguagesTest {
             Files.readAllBytes(new File(platform.dir, "go.mod").toPath()), StandardCharsets.UTF_8));
     }
 
+    private boolean commandAvailable(String... command) throws Exception {
+        try {
+            Process process = new ProcessBuilder(command).redirectErrorStream(true).start();
+            try { return process.waitFor(10, TimeUnit.SECONDS) && process.exitValue() == 0; }
+            finally { if (process.isAlive()) process.destroyForcibly(); }
+        } catch (IOException missing) { return false; }
+    }
+
+    @Test public void rustUsesAdditionalCargoDependencies() throws Exception {
+        File dep = new File(platform.dir, "rust-library");
+        File src = new File(dep, "src");
+        assertTrue(src.mkdirs());
+        Files.write(new File(dep, "Cargo.toml").toPath(),
+            "[package]\nname=\"tfl-extra\"\nversion=\"0.1.0\"\nedition=\"2021\"\n".getBytes(StandardCharsets.UTF_8));
+        Files.write(new File(src, "lib.rs").toPath(),
+            "pub fn message() -> &'static str { \"cargo-dependency-ok\" }\n".getBytes(StandardCharsets.UTF_8));
+        write("Cargo.toml", "[package]\nname=\"tfl-program\"\nversion=\"0.1.0\"\nedition=\"2021\"\n[dependencies]\ntfl-extra={path="
+            + new com.google.gson.Gson().toJson(dep.getAbsolutePath()) + "}\n");
+        write("main.rs", "use tranforlanguage::{broadcast,run};\nfn main(){broadcast(tfl_extra::message()).unwrap();run(|_|{}).unwrap();}\n");
+        runtime.reload().get(310, TimeUnit.SECONDS);
+        receive("cargo-dependency-ok");
+        assertTrue(new File(platform.dir, "Cargo.toml").isFile());
+    }
+
+    @Test public void javaImportsExternalJarFromLibDirectory() throws Exception {
+        File src = new File(platform.dir, "library-src");
+        File classes = new File(platform.dir, "library-classes");
+        assertTrue(src.mkdirs());
+        assertTrue(classes.mkdirs());
+        File external = new File(src, "External.java");
+        Files.write(external.toPath(), "public class External { public static String message() { return \"java-lib-ok\"; }}\n".getBytes(StandardCharsets.UTF_8));
+        Process javac = new ProcessBuilder("javac", "-d", classes.getAbsolutePath(), external.getAbsolutePath()).start();
+        assertTrue("Unable to compile test JAR", javac.waitFor(30, TimeUnit.SECONDS) && javac.exitValue() == 0);
+        File lib = new File(platform.dir, "lib");
+        assertTrue(lib.mkdirs());
+        try (java.util.jar.JarOutputStream jar = new java.util.jar.JarOutputStream(new FileOutputStream(new File(lib, "external.jar")))) {
+            jar.putNextEntry(new java.util.jar.JarEntry("External.class"));
+            jar.write(Files.readAllBytes(new File(classes, "External.class").toPath()));
+            jar.closeEntry();
+        }
+        write("Main.java", "import tranforlanguage.TranForLanguage;\n"
+            + "public class Main{ public static void main(String[] a){TranForLanguage.broadcast(External.message());TranForLanguage.run();}}\n");
+        runtime.reload().get(120, TimeUnit.SECONDS);
+        receive("java-lib-ok");
+    }
+
+    @Test public void cLinksPackagesListedInPkgConfig() throws Exception {
+        org.junit.Assume.assumeTrue("pkg-config / zlib unavailable", commandAvailable("pkg-config", "--exists", "zlib"));
+        write("program.json", "{\"language\":\"c\",\"pkgConfig\":[\"zlib\"]}");
+        write("main.c", "#include <zlib.h>\n#include <stdio.h>\n"
+            + "int main(void){const unsigned char data[]=\"hi\"; if(crc32(0L,data,2))broadcast(\"native-pkg-ok\");"
+            + "char s[256];fgets(s,sizeof(s),stdin);return 0;}\n");
+        runtime.reload().get(120, TimeUnit.SECONDS);
+        receive("native-pkg-ok");
+    }
+
+    @Test public void rubyUsesBundlerWhenGemfileExists() throws Exception {
+        org.junit.Assume.assumeTrue("Bundler unavailable", commandAvailable("bundle", "--version"));
+        write("Gemfile", "source 'https://rubygems.org'\n");
+        write("main.rb", "require 'tranforlanguage'\nTranForLanguage.broadcast('bundler-ok')\nTranForLanguage.run\n");
+        runtime.reload().get(120, TimeUnit.SECONDS);
+        receive("bundler-ok");
+        assertTrue(new File(platform.dir, ".tranforlanguage/ruby-project/.dependencies-sha256").exists());
+    }
+
+    @Test public void phpLoadsComposerAutoloadAlongsideSdk() throws Exception {
+        org.junit.Assume.assumeTrue("Composer unavailable", commandAvailable("composer", "--version"));
+        write("composer.json", "{\"name\":\"tfl/test\",\"require\":{}}");
+        write("main.php", "<?php\nTranForLanguage::broadcast('composer-ok');\nTranForLanguage::run();\n");
+        runtime.reload().get(120, TimeUnit.SECONDS);
+        receive("composer-ok");
+    }
+
     @Test public void standaloneRuntimeAnswersCallsWithAnError() throws Exception {
         write("main.py", "from tranforlanguage import call,broadcast,CallError\ntry:\n call('x','y')\nexcept CallError as e:\n broadcast(str(e))\n");
         runtime.reload().get(10, TimeUnit.SECONDS);
