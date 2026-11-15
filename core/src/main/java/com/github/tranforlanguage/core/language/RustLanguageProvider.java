@@ -26,7 +26,10 @@ public final class RustLanguageProvider implements LanguageProvider {
             if (original.matches("(?s).*\\[dependencies\\.tranforlanguage\\].*")
                 || java.util.regex.Pattern.compile("(?m)^\\s*tranforlanguage\\s*=").matcher(original).find())
                 throw new IllegalArgumentException("Cargo.toml must not override the bundled tranforlanguage SDK dependency");
-            manifest = original + "\n[dependencies.tranforlanguage]\npath=" + gson.toJson(sdk.getAbsolutePath())
+            // The generated project sits below the user's directory; prevent Cargo from
+            // treating the parent package as an implicit workspace root.
+            String workspace = original.contains("[workspace]") ? "" : "\n[workspace]\n";
+            manifest = original + workspace + "\n[dependencies.tranforlanguage]\npath=" + gson.toJson(sdk.getAbsolutePath())
                 + "\n[[bin]]\nname=\"tranforlanguage_program\"\npath=" + gson.toJson(source.getAbsolutePath()) + "\n";
             File lock = new File(directory, "Cargo.lock");
             if (lock.isFile()) Files.copy(lock.toPath(), new File(project, "Cargo.lock").toPath(),
