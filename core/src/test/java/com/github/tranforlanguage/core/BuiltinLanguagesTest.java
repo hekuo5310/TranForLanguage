@@ -88,6 +88,57 @@ public class BuiltinLanguagesTest {
     @Test public void javaCompilesWithBundledSdkAndReceivesUnicodeEvent() throws Exception {
         roundTrip("Main.java", "import tranforlanguage.TranForLanguage;\npublic class Main{public static void main(String[] a){TranForLanguage.on(\"PlayerJoin\",p->TranForLanguage.broadcast(p[0]));TranForLanguage.run();}}\n", 120);
     }
+    @Test public void pythonInstallsOfflineWheelAndReusesVenv() throws Exception {
+        File wheelFile = new File(platform.dir, "tfl_sample-1.0-py3-none-any.whl");
+        java.util.Map<String, String> entries = new java.util.LinkedHashMap<>();
+        entries.put("tfl_sample/__init__.py", "VALUE = 'external package loaded'\n");
+        entries.put("tfl_sample-1.0.dist-info/METADATA", "Metadata-Version: 2.1\nName: tfl-sample\nVersion: 1.0\n");
+        entries.put("tfl_sample-1.0.dist-info/WHEEL", "Wheel-Version: 1.0\nGenerator: TFL test\nRoot-Is-Purelib: true\nTag: py3-none-any\n");
+        entries.put("tfl_sample-1.0.dist-info/RECORD", "");
+        try (java.util.zip.ZipOutputStream zip = new java.util.zip.ZipOutputStream(new FileOutputStream(wheelFile))) {
+            for (java.util.Map.Entry<String, String> entry : entries.entrySet()) {
+                zip.putNextEntry(new java.util.zip.ZipEntry(entry.getKey()));
+                zip.write(entry.getValue().getBytes(StandardCharsets.UTF_8));
+                zip.closeEntry();
+            }
+        }
+        write("requirements.txt", "tfl-sample @ " + wheelFile.toURI().toASCIIString() + "\n");
+        write("main.py", "from tfl_sample import VALUE\nfrom tranforlanguage import broadcast,run\nbroadcast(VALUE)\nrun()\n");
+        runtime.reload().get(120, TimeUnit.SECONDS);
+        receive("external package loaded");
+        File venv = new File(platform.dir, ".tranforlanguage/python-venv");
+        assertTrue(new File(venv, "pyvenv.cfg").isFile());
+        File stamp = new File(venv, ".dependencies-sha256");
+        byte[] original = Files.readAllBytes(stamp.toPath());
+        runtime.reload().get(120, TimeUnit.SECONDS);
+        receive("external package loaded");
+        assertArrayEquals(original, Files.readAllBytes(stamp.toPath()));
+    }
+
+    @Test public void javascriptInstallsLocalPackageUsingManagedNpmDirectory() throws Exception {
+        File module = new File(platform.dir, "test-node-module");
+        assertTrue(module.mkdirs());
+        Files.write(new File(module, "package.json").toPath(),
+            "{\"name\":\"tfl-offline-dependency\",\"version\":\"1.0.0\",\"main\":\"index.js\"}".getBytes(StandardCharsets.UTF_8));
+        Files.write(new File(module, "index.js").toPath(), "module.exports = 'node-pkg-ok';\n".getBytes(StandardCharsets.UTF_8));
+        write("package.json", "{\"name\":\"tfl-test\",\"version\":\"1.0.0\",\"dependencies\":{\"tfl-offline-dependency\":\""
+            + module.toURI().toASCIIString() + "\"}}");
+        write("main.js", "const t=require('tranforlanguage');t.broadcast(require('tfl-offline-dependency'));t.run();\n");
+        runtime.reload().get(120, TimeUnit.SECONDS);
+        receive("node-pkg-ok");
+        assertTrue(new File(platform.dir, ".tranforlanguage/node-project/.dependencies-sha256").isFile());
+    }
+
+    @Test public void goUsesAuthorProvidedGoModWithoutOverwritingIt() throws Exception {
+        write("go.mod", "module tfl-test-module\n\ngo 1.21\n");
+        write("main.go", "package main\nimport t \"tranforlanguage\"\nfunc main(){t.On(\"PlayerJoin\",func(a []string){t.Broadcast(a[0])});t.Run()}\n");
+        runtime.reload().get(120, TimeUnit.SECONDS);
+        runtime.sendEvent("PlayerJoin", TEXT);
+        receive(TEXT);
+        assertEquals("module tfl-test-module\n\ngo 1.21\n", new String(
+            Files.readAllBytes(new File(platform.dir, "go.mod").toPath()), StandardCharsets.UTF_8));
+    }
+
     @Test public void standaloneRuntimeAnswersCallsWithAnError() throws Exception {
         write("main.py", "from tranforlanguage import call,broadcast,CallError\ntry:\n call('x','y')\nexcept CallError as e:\n broadcast(str(e))\n");
         runtime.reload().get(10, TimeUnit.SECONDS);
