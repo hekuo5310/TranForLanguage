@@ -8,7 +8,7 @@ import java.util.logging.Logger;
 public final class CLanguageProvider implements LanguageProvider {
     public String id() { return "c"; }
     public LaunchCommand prepare(File directory, JsonObject configuration, Logger logger) {
-        File executable = new CppCompiler(directory, logger, true).compile(directory);
+        File executable = new CppCompiler(directory, logger, true).compile(directory, configuration);
         return executable == null ? null : new LaunchCommand(directory, Collections.singletonList(executable.getAbsolutePath()));
     }
 }

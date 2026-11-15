@@ -20,6 +20,8 @@ public final class RustLanguageProvider implements LanguageProvider {
         String manifest = "[package]\nname=\"tranforlanguage-program\"\nversion=\"0.0.0\"\nedition=\"2021\"\n[workspace]\n"
             + "[[bin]]\nname=\"tranforlanguage_program\"\npath=" + gson.toJson(source.getAbsolutePath())
             + "\n[dependencies]\ntranforlanguage={path=" + gson.toJson(sdk.getAbsolutePath()) + "}\n";
+        File userManifest = new File(directory, "Cargo.toml");
+        if (userManifest.isFile()) manifest = CargoManifest.managed(userManifest, sdk, source);
         File cargoManifest = new File(project, "Cargo.toml");
         Files.write(cargoManifest.toPath(), manifest.getBytes(StandardCharsets.UTF_8));
         ProgramFiles.build(directory, Arrays.asList(System.getProperty("tranforlanguage.cargo", "cargo"), "build", "--release",

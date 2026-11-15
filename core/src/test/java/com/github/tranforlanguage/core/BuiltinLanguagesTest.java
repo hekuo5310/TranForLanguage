@@ -49,6 +49,92 @@ public class BuiltinLanguagesTest {
         receive(TEXT);
         assertFalse(new File(platform.dir, "tranforlanguage.py").exists());
     }
+    @Test public void pythonRequirementsCreateIsolatedEnvironmentAndReloadOnChanges() throws Exception {
+        write("requirements.txt", "# empty dependency list\n");
+        write("main.py", "import sys\nfrom tranforlanguage import broadcast,run\nbroadcast('venv' if sys.prefix != sys.base_prefix else 'global')\nrun()\n");
+        runtime.reload().get(180, TimeUnit.SECONDS);
+        receive("venv");
+        File stamp = new File(platform.dir, ".tranforlanguage/python-venv/.tfl-requirements");
+        assertTrue(stamp.isFile());
+        String original = new String(Files.readAllBytes(stamp.toPath()), StandardCharsets.UTF_8);
+        write("requirements.txt", "# changed dependency list\n");
+        platform.message = null;
+        runtime.reload().get(180, TimeUnit.SECONDS);
+        receive("venv");
+        assertNotEquals(original, new String(Files.readAllBytes(stamp.toPath()), StandardCharsets.UTF_8));
+    }
+    @Test public void javascriptPackageManifestIsInstalledWithoutModifyingSource() throws Exception {
+        write("package.json", "{\"name\":\"tfl-test\",\"version\":\"1.0.0\",\"dependencies\":{}}\n");
+        write("main.js", "const t=require('tranforlanguage');t.broadcast('npm');t.run();\n");
+        runtime.reload().get(180, TimeUnit.SECONDS);
+        receive("npm");
+        assertTrue(new File(platform.dir, ".tranforlanguage/node-dependencies").isFile());
+        assertFalse(new File(platform.dir, "node_modules").exists());
+    }
+    @Test public void javascriptResolvesLocalFileDependenciesWithoutRewritingManifest() throws Exception {
+        File local = new File(platform.dir, "local-package");
+        assertTrue(local.mkdirs());
+        write("local-package/package.json", "{\"name\":\"tfl-local\",\"version\":\"1.0.0\",\"main\":\"index.js\"}\n");
+        write("local-package/index.js", "module.exports='local-npm';\n");
+        String manifest = "{\"name\":\"tfl-plugin\",\"version\":\"1.0.0\",\"dependencies\":{\"tfl-local\":\"file:./local-package\"}}\n";
+        write("package.json", manifest);
+        write("main.js", "const t=require('tranforlanguage');t.broadcast(require('tfl-local'));t.run();\n");
+        runtime.reload().get(180, TimeUnit.SECONDS);
+        receive("local-npm");
+        assertEquals(manifest, new String(Files.readAllBytes(new File(platform.dir, "package.json").toPath()), StandardCharsets.UTF_8));
+        assertTrue(new File(platform.dir, "node_modules/tfl-local").exists());
+    }
+    @Test public void pythonNestedRequirementsAndConstraintsInvalidateCache() throws Exception {
+        write("requirements.txt", "-r nested.txt\n-c constraints.txt\n");
+        write("nested.txt", "# first\n");
+        write("constraints.txt", "# constraint\n");
+        write("main.py", "from tranforlanguage import broadcast,run\nbroadcast('nested');run()\n");
+        runtime.reload().get(180, TimeUnit.SECONDS);
+        receive("nested");
+        File stamp = new File(platform.dir, ".tranforlanguage/python-venv/.tfl-requirements");
+        String first = new String(Files.readAllBytes(stamp.toPath()), StandardCharsets.UTF_8);
+        write("nested.txt", "# second\n");
+        platform.message = null;
+        runtime.reload().get(180, TimeUnit.SECONDS);
+        receive("nested");
+        String second = new String(Files.readAllBytes(stamp.toPath()), StandardCharsets.UTF_8);
+        assertNotEquals(first, second);
+        write("constraints.txt", "# updated\n");
+        platform.message = null;
+        runtime.reload().get(180, TimeUnit.SECONDS);
+        receive("nested");
+        assertNotEquals(second, new String(Files.readAllBytes(stamp.toPath()), StandardCharsets.UTF_8));
+    }
+    @Test public void goRelocatesRelativeModuleReplacements() throws Exception {
+        File local = new File(platform.dir, "localdep");
+        assertTrue(local.mkdirs());
+        write("localdep/go.mod", "module example.com/tfl-local\n\ngo 1.21\n");
+        write("localdep/hello.go", "package localdep\nfunc Hello() string{return \"local-go\"}\n");
+        String manifest = "module example.com/plugin\n\ngo 1.21\n\nrequire example.com/tfl-local v0.0.0\nreplace example.com/tfl-local => ./localdep\n";
+        write("go.mod", manifest);
+        write("main.go", "package main\nimport t \"tranforlanguage\"\nimport local \"example.com/tfl-local\"\nfunc main(){t.Broadcast(local.Hello());t.Run()}\n");
+        runtime.reload().get(300, TimeUnit.SECONDS);
+        receive("local-go");
+        assertEquals(manifest, new String(Files.readAllBytes(new File(platform.dir, "go.mod").toPath()), StandardCharsets.UTF_8));
+    }
+    @Test public void goUsesPluginModuleWithoutRewritingIt() throws Exception {
+        String module = "module example.com/plugin\n\ngo 1.21\n";
+        write("go.mod", module);
+        write("main.go", "package main\nimport t \"tranforlanguage\"\nfunc main(){t.Broadcast(\"go.mod\");t.Run()}\n");
+        runtime.reload().get(300, TimeUnit.SECONDS);
+        receive("go.mod");
+        assertEquals(module, new String(Files.readAllBytes(new File(platform.dir, "go.mod").toPath()), StandardCharsets.UTF_8));
+    }
+    @Test public void rustBuildsWithRelocatedLocalPathDependency() throws Exception {
+        File src = new File(platform.dir, "localhelper/src");
+        assertTrue(src.mkdirs());
+        write("localhelper/Cargo.toml", "[package]\nname='localhelper'\nversion='0.1.0'\nedition='2021'\n");
+        write("localhelper/src/lib.rs", "pub fn hello()-> &'static str { \"local-rust\" }\n");
+        write("Cargo.toml", "[package]\nname='plugin'\nversion='0.1.0'\nedition='2021'\n[dependencies]\nlocalhelper={path='localhelper'}\n");
+        write("main.rs", "use tranforlanguage::{broadcast,run};\nfn main(){broadcast(localhelper::hello()).unwrap();run(|_|{}).unwrap();}\n");
+        runtime.reload().get(310, TimeUnit.SECONDS);
+        receive("local-rust");
+    }
     @Test public void rustCompilesWithBundledCrateAndReceivesUnicodeEvent() throws Exception {
         write("main.rs", "use tranforlanguage::{run,broadcast};fn main(){run(|e|{if e.event==\"PlayerJoin\"{broadcast(&e.args[0]).unwrap();}}).unwrap();}\n");
         try { runtime.reload().get(310, TimeUnit.SECONDS); }

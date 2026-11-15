@@ -22,15 +22,50 @@ public final class GoLanguageProvider implements LanguageProvider {
         ProgramFiles.deleteTree(new File(project, "src"));
         File src = new File(project, "src"); Files.createDirectories(src.toPath());
         for (File source : sources) Files.copy(source.toPath(), new File(src, source.getName()).toPath());
-        String mod = "module tranforlanguage-program\n\ngo 1.21\n\nrequire tranforlanguage v0.0.0\n\nreplace tranforlanguage => "
-            + new Gson().toJson(sdk.getAbsolutePath()) + "\n";
-        Files.write(new File(src, "go.mod").toPath(), mod.getBytes(StandardCharsets.UTF_8));
+        File userMod = new File(directory, "go.mod");
+        File userSum = new File(directory, "go.sum");
+        if (userMod.isFile()) {
+            Files.copy(userMod.toPath(), new File(src, "go.mod").toPath(), StandardCopyOption.REPLACE_EXISTING);
+            if (userSum.isFile()) Files.copy(userSum.toPath(), new File(src, "go.sum").toPath(), StandardCopyOption.REPLACE_EXISTING);
+        } else {
+            String mod = "module tranforlanguage-program\n\ngo 1.21\n";
+            Files.write(new File(src, "go.mod").toPath(), mod.getBytes(StandardCharsets.UTF_8));
+        }
+        String go = System.getProperty("tranforlanguage.go", "go");
+        // Use go's JSON representation, not regexes over go.mod syntax.
+        // Local replacements are relative to the ORIGINAL manifest, not our copied build directory.
+        if (userMod.isFile()) {
+            String json = ProgramFiles.capture(directory, Arrays.asList(go, "mod", "edit", "-json"), 30, 1048576);
+            JsonObject details = new Gson().fromJson(json, JsonObject.class);
+            JsonArray replacements = details.has("Replace") && details.get("Replace").isJsonArray()
+                ? details.getAsJsonArray("Replace") : null;
+            if (replacements != null) for (JsonElement element : replacements) {
+                JsonObject replacement = element.getAsJsonObject();
+                JsonObject old = replacement.getAsJsonObject("Old");
+                JsonObject target = replacement.getAsJsonObject("New");
+                if (target.has("Version") && !target.get("Version").isJsonNull()
+                    && !target.get("Version").getAsString().isEmpty()) continue;
+                String location = target.get("Path").getAsString();
+                if (!location.startsWith(".")) continue;
+                String module = old.get("Path").getAsString();
+                if (old.has("Version") && !old.get("Version").isJsonNull()
+                    && !old.get("Version").getAsString().isEmpty())
+                    module += "@" + old.get("Version").getAsString();
+                String absolute = new File(directory, location).getCanonicalPath().replace(File.separatorChar, '/');
+                ProgramFiles.build(directory, src, Arrays.asList(go, "mod", "edit",
+                    "-replace=" + module + "=" + absolute), Collections.emptyMap(), 30);
+            }
+        }
+        // The bundled SDK always overrides a user-supplied tranforlanguage replacement.
+        ProgramFiles.build(directory, src, Arrays.asList(go, "mod", "edit",
+            "-require=tranforlanguage@v0.0.0",
+            "-replace=tranforlanguage=" + sdk.getAbsolutePath()), Collections.emptyMap(), 30);
         boolean windows = System.getProperty("os.name").toLowerCase(Locale.ROOT).contains("win");
         File executable = new File(project, windows ? "tranforlanguage_program.exe" : "tranforlanguage_program");
         Files.deleteIfExists(executable.toPath());
         Map<String, String> environment = new HashMap<>();
         environment.put("GOWORK", "off"); environment.put("GOFLAGS", "-mod=mod"); environment.put("CGO_ENABLED", "0");
-        ProgramFiles.build(directory, src, Arrays.asList(System.getProperty("tranforlanguage.go", "go"), "build",
+        ProgramFiles.build(directory, src, Arrays.asList(go, "build",
             "-o", executable.getAbsolutePath(), "."), environment, 300);
         if (!executable.isFile()) throw new IOException("Go did not produce the program; see compile.log");
         logger.info("Go compilation complete: " + sources.length + " source(s)");
