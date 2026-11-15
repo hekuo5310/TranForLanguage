@@ -116,14 +116,19 @@ public class BuiltinLanguagesTest {
         assertArrayEquals(original, Files.readAllBytes(stamp.toPath()));
     }
 
-    @Test public void javascriptInstallsLocalPackageUsingManagedNpmDirectory() throws Exception {
+    @Test public void javascriptInstallsOfflineTarballUsingManagedNpmDirectory() throws Exception {
         File module = new File(platform.dir, "test-node-module");
         assertTrue(module.mkdirs());
         Files.write(new File(module, "package.json").toPath(),
             "{\"name\":\"tfl-offline-dependency\",\"version\":\"1.0.0\",\"main\":\"index.js\"}".getBytes(StandardCharsets.UTF_8));
         Files.write(new File(module, "index.js").toPath(), "module.exports = 'node-pkg-ok';\n".getBytes(StandardCharsets.UTF_8));
+        Process packed = new ProcessBuilder("npm", "pack", module.getAbsolutePath(), "--ignore-scripts",
+            "--pack-destination", platform.dir.getAbsolutePath(), "--silent").directory(platform.dir).start();
+        assertTrue("npm pack did not complete", packed.waitFor(60, TimeUnit.SECONDS) && packed.exitValue() == 0);
+        File archive = new File(platform.dir, "tfl-offline-dependency-1.0.0.tgz");
+        assertTrue("npm pack did not create a tarball", archive.isFile());
         write("package.json", "{\"name\":\"tfl-test\",\"version\":\"1.0.0\",\"dependencies\":{\"tfl-offline-dependency\":\""
-            + module.toURI().toASCIIString() + "\"}}");
+            + archive.toURI().toASCIIString() + "\"}}");
         write("main.js", "const t=require('tranforlanguage');t.broadcast(require('tfl-offline-dependency'));t.run();\n");
         runtime.reload().get(120, TimeUnit.SECONDS);
         File installed = new File(platform.dir, ".tranforlanguage/node-project/node_modules/tfl-offline-dependency");
