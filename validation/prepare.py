@@ -37,7 +37,7 @@ motd=TranForLanguage disposable validation
 mods = root / ('plugins' if args.loader == 'spigot' else 'mods')
 mods.mkdir()
 shutil.copy2(args.artifact, mods / args.artifact.name)
-programs = root / ('plugins/C++ Plugins' if args.loader == 'spigot' else 'config/tranforcpp/programs')
+programs = root / ('plugins/TranForLanguage/programs' if args.loader == 'spigot' else 'config/tranforlanguage/programs')
 programs.mkdir(parents=True)
 common = '''#include <stdio.h>
 #include <unistd.h>
@@ -63,7 +63,7 @@ c = programs / 'c'; c.mkdir()
 (c / 'main.c').write_text(common.replace('ID', 'c'))
 py = programs / 'python'; py.mkdir()
 (py / 'main.py').write_text('''import os,sys
-from tranforcpp import console,broadcast,send_message,dispatch_command
+from tranforlanguage import console,broadcast,send_message,dispatch_command
 open('pid','w').write(str(os.getpid()))
 console('TFL_READY_python'); dispatch_command('say TFL_ACTION_python')
 with open('events.jsonl','a',buffering=1) as log:
@@ -75,7 +75,7 @@ with open('events.jsonl','a',buffering=1) as log:
 ''')
 rust = programs / 'rust'; rust.mkdir()
 (rust / 'main.rs').write_text('''use std::io::{BufRead,Write};
-use tranforcpp::{console,broadcast,send_message,dispatch_command};
+use tranforlanguage::{console,broadcast,send_message,dispatch_command};
 fn main()->Result<(),Box<dyn std::error::Error>> {
     std::fs::write("pid", std::process::id().to_string())?;
     let mut log=std::fs::OpenOptions::new().create(true).append(true).open("events.jsonl")?;

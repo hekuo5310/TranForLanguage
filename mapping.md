@@ -27,7 +27,7 @@ public void onBlockPlace(org.bukkit.event.block.BlockPlaceEvent event) {
 }
 ```
 
-### 2. C++ API 头文件 (tranforcpp_api.h)
+### 2. C++ API 头文件 (tranforlanguage.hpp)
 
 添加事件函数声明：
 
@@ -172,4 +172,4 @@ void console(const char* message);              // 输出到控制台
 2. 数值类型需要从字符串转换：`std::atoi(str)` 或 `std::stod(str)`
 3. JSON 解析需要正确处理转义字符
 4. 修改后需要重新编译 JAR 文件
-5. 用户代码修改后使用 `/tranforcpp reload` 重载
+5. 用户代码修改后使用 `/tranforlanguage reload` 重载

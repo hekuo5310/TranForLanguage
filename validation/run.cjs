@@ -180,7 +180,7 @@ async function main() {
   await event('ServerCommand', async () => command('say TFL_ALL_FOUR_AGAIN'))
   const added = path.join(config.programs, '新 插件')
   fs.mkdirSync(added)
-  fs.writeFileSync(path.join(added, 'main.py'), 'from tranforcpp import console,run\nconsole("TFL_ADDED_READY")\nrun()\n')
+  fs.writeFileSync(path.join(added, 'main.py'), 'from tranforlanguage import console,run\nconsole("TFL_ADDED_READY")\nrun()\n')
   command('tranforlanguage start 新 插件')
   await until(() => output.includes('TFL_ADDED_READY'), 'Unicode and space ID discovery')
   command('tranforlanguage stop 新 插件')

@@ -24,7 +24,7 @@ rows = json.loads((repo / 'compatibility/versions.json').read_text())['include']
 row = next((r for r in rows if r['loader'] == loader and r['minecraft'] == args.minecraft), None)
 if loader != 'spigot' and row is None:
     parser.error('Target not present in the reviewed version lock file')
-user_agent = 'TranForLanguage-Validation/2.1.0 (https://github.com/hekuo5310/TranForLanguage)'
+user_agent = 'TranForLanguage-Validation/2.2.0 (https://github.com/hekuo5310/TranForLanguage)'
 
 def read_json(url):
     request = urllib.request.Request(url, headers={'User-Agent': user_agent})

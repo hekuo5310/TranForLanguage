@@ -17,17 +17,18 @@ files = [p for p in Path('.').glob(pattern) if not any(s in p.name for s in ['-s
 assert len(files) == 1, f'Expected one distributable, got {files}'
 with zipfile.ZipFile(files[0]) as jar:
     names = set(jar.namelist())
-    assert 'tranforcpp_api.h' in names, 'Missing C++ SDK resource'
-    for resource in ['c/tranforcpp.h', 'c/runtime.c', 'python/bootstrap.py', 'python/tranforcpp.py',
-                     'rust/Cargo.toml', 'rust/src/lib.rs']:
+    for resource in ['cpp/tranforlanguage.hpp', 'c/tranforlanguage.h', 'c/tranforlanguage_rpc.h', 'c/rpc.c', 'python/bootstrap.py', 'python/tranforlanguage.py',
+                     'rust/Cargo.toml', 'rust/src/lib.rs', 'javascript/tranforlanguage.js', 'go/go.mod', 'go/tranforlanguage.go',
+                     'ruby/tranforlanguage.rb', 'php/tranforlanguage.php', 'java/tranforlanguage/TranForLanguage.java']:
         assert 'sdk/' + resource in names, 'Missing bundled SDK: ' + resource
     assert 'LICENSE' in names, 'Missing project license'
-    assert 'com/github/tranforcpp/core/ProgramRuntime.class' in names
-    assert 'com/github/tranforcpp/core/ProgramManager.class' in names
+    assert 'com/github/tranforlanguage/core/ProgramRuntime.class' in names
+    assert 'com/github/tranforlanguage/core/ProgramManager.class' in names
+    assert 'com/github/tranforlanguage/core/ProgramBus.class' in names
     assert not any(name.endswith('/MemoryOptimizer.class') or name.endswith('/SmartThreadOptimizer.class') for name in names)
-    assert 'com/github/tranforcpp/core/language/LanguageProvider.class' in names
+    assert 'com/github/tranforlanguage/core/language/LanguageProvider.class' in names
     majors = {struct.unpack('>H', jar.read(name)[6:8])[0] for name in names
-              if name.endswith('.class') and name.startswith('com/github/tranforcpp/')}
+              if name.endswith('.class') and name.startswith('com/github/tranforlanguage/')}
     assert max(majors) <= int(java) + 44, (java, majors)
     if loader == 'spigot':
         for name in ['adventure', 'examination', 'gson', 'annotations']:
@@ -35,7 +36,7 @@ with zipfile.ZipFile(files[0]) as jar:
         assert 'META-INF/THIRD-PARTY-NOTICES.txt' in names
         descriptor = jar.read('plugin.yml').decode()
         assert 'name: TranForLanguage' in descriptor
-        assert 'main: com.github.tranforcpp.TranforCPlusPlus' in descriptor
+        assert 'main: com.github.tranforlanguage.TranForLanguage' in descriptor
         assert f"version: '{project_version}'" in descriptor
         assert "api-version: '1.13'" in descriptor
         assert 'paper-plugin.yml' not in names
@@ -44,7 +45,7 @@ with zipfile.ZipFile(files[0]) as jar:
         config = json.loads(jar.read('tranforlanguage.mixins.json'))
         assert config['required'] and config['injectors']['defaultRequire'] == 1
         for mixin in config['mixins']:
-            assert 'com/github/tranforcpp/mixin/' + mixin + '.class' in names
+            assert 'com/github/tranforlanguage/mixin/' + mixin + '.class' in names
         if loader == 'forge' and minecraft in ['1.20', '1.20.1', '1.20.2', '1.20.3', '1.20.4']:
             refmap = json.loads(jar.read(config['refmap']))
             assert refmap['mappings'], 'Legacy Forge mixin refmap is empty'
@@ -56,9 +57,9 @@ with zipfile.ZipFile(files[0]) as jar:
             assert descriptor['version'] == project_version
             assert descriptor['name'] == 'TranForLanguage'
             assert descriptor['environment'] == 'server'
-            assert 'com/github/tranforcpp/fabric/TranforFabric.class' in names
+            assert 'com/github/tranforlanguage/fabric/TranForLanguageFabric.class' in names
             if not minecraft.startswith('26.'):
-                signatures = subprocess.check_output(['javap', '-classpath', str(files[0]), '-p', 'com.github.tranforcpp.fabric.TranforFabric'], text=True)
+                signatures = subprocess.check_output(['javap', '-classpath', str(files[0]), '-p', 'com.github.tranforlanguage.fabric.TranForLanguageFabric'], text=True)
                 assert 'net.minecraft.server.level.ServerPlayer' not in signatures, 'Fabric distributable was not remapped'
         else:
             path = 'META-INF/neoforge.mods.toml' if loader == 'neoforge' else 'META-INF/mods.toml'
@@ -72,7 +73,7 @@ with zipfile.ZipFile(files[0]) as jar:
                     assert descriptor['loaderVersion'] == '[1,)'
                 else:
                     assert 'modLoader' not in descriptor and 'loaderVersion' not in descriptor
-            dependency = next(d for d in descriptor['dependencies']['tranforcpp'] if d['modId'] == 'minecraft')
+            dependency = next(d for d in descriptor['dependencies']['tranforlanguage'] if d['modId'] == 'minecraft')
             assert dependency['versionRange'] == f'[{minecraft}]'
-            assert f'com/github/tranforcpp/{loader}/TranforForge.class' in names
+            assert f'com/github/tranforlanguage/{loader}/TranForLanguageForge.class' in names
 print(f'Artifact verified: {files[0]} ({loader}, Java {java}, class versions {sorted(majors)})')

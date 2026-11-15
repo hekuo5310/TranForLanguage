@@ -1,8 +1,8 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
-  <groupId>com.github.tranforcpp</groupId><artifactId>tranforlanguage-spigot</artifactId><version>2.1.0</version>
+  <groupId>com.github.tranforlanguage</groupId><artifactId>tranforlanguage-spigot</artifactId><version>2.2.0</version>
   <name>TranForLanguage</name>
-  <description>Run C, C++, Python and Rust programs on Minecraft servers.</description>
+  <description>Run C, C++, Python, Rust, JavaScript, Go, Ruby, PHP and Java programs on Minecraft servers and let them call each other.</description>
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <maven.compiler.release>8</maven.compiler.release>
@@ -17,7 +17,8 @@
     <dependency><groupId>junit</groupId><artifactId>junit</artifactId><version>4.13.2</version><scope>test</scope></dependency>
   </dependencies>
   <build>
-    <resources><resource><directory>src/main/resources</directory><filtering>true</filtering></resource><resource><directory>core/src/main/resources</directory></resource><resource><directory>.</directory><includes><include>tranforcpp_api.h</include><include>LICENSE</include></includes></resource></resources>
+    <testResources><testResource><directory>core/src/test/resources</directory></testResource></testResources>
+    <resources><resource><directory>src/main/resources</directory><filtering>true</filtering></resource><resource><directory>core/src/main/resources</directory></resource><resource><directory>.</directory><includes><include>LICENSE</include></includes></resource></resources>
     <plugins>
       <plugin><groupId>org.codehaus.mojo</groupId><artifactId>build-helper-maven-plugin</artifactId><version>3.6.1</version><executions>
         <execution><id>core</id><phase>generate-sources</phase><goals><goal>add-source</goal></goals><configuration><sources><source>core/src/main/java</source></sources></configuration></execution>
@@ -30,8 +31,8 @@
       <plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-shade-plugin</artifactId><version>3.6.0</version><executions><execution><phase>package</phase><goals><goal>shade</goal></goals><configuration>
         <createDependencyReducedPom>false</createDependencyReducedPom>
         <relocations>
-          <relocation><pattern>com.google.gson</pattern><shadedPattern>com.github.tranforcpp.internal.gson</shadedPattern></relocation>
-          <relocation><pattern>net.kyori</pattern><shadedPattern>com.github.tranforcpp.internal.kyori</shadedPattern></relocation>
+          <relocation><pattern>com.google.gson</pattern><shadedPattern>com.github.tranforlanguage.internal.gson</shadedPattern></relocation>
+          <relocation><pattern>net.kyori</pattern><shadedPattern>com.github.tranforlanguage.internal.kyori</shadedPattern></relocation>
         </relocations>
         <filters><filter><artifact>*:*</artifact><excludes><exclude>META-INF/*.SF</exclude><exclude>META-INF/*.DSA</exclude><exclude>META-INF/*.RSA</exclude><exclude>module-info.class</exclude><exclude>META-INF/versions/**</exclude></excludes></filter></filters>
       </configuration></execution></executions></plugin>

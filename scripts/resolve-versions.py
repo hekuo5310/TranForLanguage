@@ -9,7 +9,7 @@ from pathlib import Path
 
 
 def versions(url):
-    with urllib.request.urlopen(urllib.request.Request(url, headers={'User-Agent': 'TranforCpp-VersionResolver/1.2 (+https://github.com/hekuo5310/TranforCpp)'}), timeout=60) as response:
+    with urllib.request.urlopen(urllib.request.Request(url, headers={'User-Agent': 'TranForLanguage-VersionResolver/1.2 (+https://github.com/hekuo5310/TranForLanguage)'}), timeout=60) as response:
         return [node.text for node in ET.fromstring(response.read()).findall('./versioning/versions/version')]
 
 

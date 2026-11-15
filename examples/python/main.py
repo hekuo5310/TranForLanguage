@@ -1,4 +1,4 @@
-from tranforcpp import on, run, send_message
+from tranforlanguage import on, run, send_message
 
 
 @on("PlayerJoin")
