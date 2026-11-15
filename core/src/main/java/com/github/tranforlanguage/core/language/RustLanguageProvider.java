@@ -21,18 +21,7 @@ public final class RustLanguageProvider implements LanguageProvider {
             + "[[bin]]\nname=\"tranforlanguage_program\"\npath=" + gson.toJson(source.getAbsolutePath())
             + "\n[dependencies]\ntranforlanguage={path=" + gson.toJson(sdk.getAbsolutePath()) + "}\n";
         File userManifest = new File(directory, "Cargo.toml");
-        if (userManifest.isFile()) {
-            String custom = new String(Files.readAllBytes(userManifest.toPath()), StandardCharsets.UTF_8);
-            String sdkDependency = "tranforlanguage={path=" + gson.toJson(sdk.getAbsolutePath()) + "}\n";
-            int dependencies = custom.indexOf("[dependencies]");
-            if (dependencies >= 0) {
-                int after = dependencies + "[dependencies]".length();
-                custom = custom.substring(0, after) + "\n" + sdkDependency + custom.substring(after);
-            } else custom += "\n[dependencies]\n" + sdkDependency;
-            // Use the user's Cargo metadata/dependencies, with a managed binary target.
-            manifest = custom + "\n[[bin]]\nname=\"tranforlanguage_program\"\npath="
-                + gson.toJson(source.getAbsolutePath()) + "\n";
-        }
+        if (userManifest.isFile()) manifest = CargoManifest.managed(userManifest, sdk, source);
         File cargoManifest = new File(project, "Cargo.toml");
         Files.write(cargoManifest.toPath(), manifest.getBytes(StandardCharsets.UTF_8));
         ProgramFiles.build(directory, Arrays.asList(System.getProperty("tranforlanguage.cargo", "cargo"), "build", "--release",
