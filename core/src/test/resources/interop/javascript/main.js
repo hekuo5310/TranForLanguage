@@ -8,6 +8,7 @@ t.on('Missing', async (source) => {
   if (source !== me) return;
   try { await t.call('nobody', 'echo'); } catch (error) { t.broadcast('missing ' + me + ':' + error.message); }
 });
+t.on('Server', async (source) => { if (source === me) t.broadcast('server ' + me + '=' + await t.server('ping', me)); });
 t.on('Announce', (source) => { if (source === me) t.publish('greet', 'hi'); });
 t.subscribe('greet', (sender, text) => t.broadcast('greet ' + me + ' from ' + sender + ': ' + text));
 t.run();

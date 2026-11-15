@@ -71,8 +71,18 @@ with open('events.jsonl','a',buffering=1) as log:
         log.write(line)
         if 'PlayerJoin' in line:
             broadcast('TFL_BROADCAST_python'); send_message('TFLProbe','TFL_PRIVATE_python')
+        if 'TFL_SERVER_PROBE' in line:
+            # Raw @server calls; their replies arrive on stdin and are logged like any other line.
+            import json
+            for i, (method, args) in enumerate([
+                    ('playerInfo', ['TFLProbe']), ('setGameMode', ['TFLProbe', 'creative']),
+                    ('giveItem', ['TFLProbe', 'minecraft:diamond', '2']), ('setFood', ['TFLProbe', '5']),
+                    ('sendTitle', ['TFLProbe', 'TFL title', 'sub']), ('setBlock', [WORLD, '3', '80', '3', 'minecraft:gold_block']),
+                    ('getBlock', [WORLD, '3', '80', '3']), ('players', []), ('noSuchMethod', [])]):
+                sys.stdout.write(json.dumps({'action': 'call', 'target': '@server', 'method': method, 'args': args, 'id': 'probe-%d' % i}) + '\\n')
+            sys.stdout.flush()
         if '"shutdown"' in line: break
-''')
+'''.replace('WORLD', repr('world' if args.loader == 'spigot' else 'minecraft:overworld')))
 rust = programs / 'rust'; rust.mkdir()
 (rust / 'main.rs').write_text('''use std::io::{BufRead,Write};
 use tranforlanguage::{console,broadcast,send_message,dispatch_command};

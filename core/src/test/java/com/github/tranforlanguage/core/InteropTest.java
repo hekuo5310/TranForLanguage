@@ -76,6 +76,14 @@ public class InteropTest {
         }
         expect(expected);
 
+        // Every SDK's server() helper reaches the platform on the server thread.
+        expected.clear();
+        for (String self : LANGUAGES) {
+            manager.sendEvent("Server", self);
+            expected.add("server " + self + "=pong:" + self);
+        }
+        expect(expected);
+
         // Errors reach the caller as language-native failures.
         expected.clear();
         for (String self : LANGUAGES) {

@@ -97,6 +97,11 @@ def call(target, method, *args):
     return reply.get("result", "")
 
 
+def server(method, *args):
+    """Call a game action on the server, e.g. ``server("teleport", "Alex", 0, 64, 0)``."""
+    return call("@server", method, *args)
+
+
 def notify(target, method, *args):
     """One-way call; no reply and no waiting."""
     _send("call", target=str(target), method=str(method), args=[str(a) for a in args])

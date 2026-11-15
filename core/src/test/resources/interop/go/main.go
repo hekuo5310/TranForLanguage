@@ -30,6 +30,12 @@ func main() {
 			t.Broadcast("missing " + me + ":" + err.Error())
 		}
 	})
+	t.On("Server", func(args []string) {
+		if args[0] == me {
+			result, _ := t.Server("ping", me)
+			t.Broadcast("server " + me + "=" + result)
+		}
+	})
 	t.On("Announce", func(args []string) {
 		if args[0] == me {
 			t.Publish("greet", "hi")

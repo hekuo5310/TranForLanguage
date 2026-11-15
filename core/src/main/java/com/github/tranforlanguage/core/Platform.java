@@ -11,4 +11,11 @@ public interface Platform {
     void broadcast(String message);
     void sendMessage(String player, String message);
     void dispatchCommand(String command);
+    /**
+     * Answers a call to the reserved {@code @server} target. Always invoked on the server thread.
+     * Return the result text; throw {@link IllegalArgumentException} (or any exception) to fail the call.
+     */
+    default String serverCall(String method, java.util.List<String> args) throws Exception {
+        throw new IllegalArgumentException("unknown server method: " + method);
+    }
 }

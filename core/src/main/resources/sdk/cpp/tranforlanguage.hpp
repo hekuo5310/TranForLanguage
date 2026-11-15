@@ -127,6 +127,8 @@ namespace tranforlanguage {
         if (!ok) throw CallError(text);
         return text;
     }
+    /** Calls a game action on the server, e.g. server("teleport", {"Alex", "0", "64", "0"}). */
+    inline std::string server(const std::string& method, const Args& args = {}) { return call("@server", method, args); }
     inline void notify(const std::string& target, const std::string& method, const Args& args = {}) {
         std::vector<const char*> argv = c_args(args);
         tranforlanguage_notify(target.c_str(), method.c_str(), (int)argv.size(), argv.data());

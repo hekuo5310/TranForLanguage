@@ -138,6 +138,9 @@ func Call(target, method string, args ...string) (string, error) {
 	return answer.Result, nil
 }
 
+// Server calls a game action, for example Server("teleport", "Alex", "0", "64", "0").
+func Server(method string, args ...string) (string, error) { return Call("@server", method, args...) }
+
 // Notify is a one-way call with no reply.
 func Notify(target, method string, args ...string) error {
 	return send(map[string]interface{}{"action": "call", "target": target, "method": method, "args": strs(args)})

@@ -29,6 +29,9 @@ static void on_event(const tranforlanguage_event *e, void *user) {
     } else if (mine(e, "Missing", 1)) {
         char *prefix = join("missing ", self, "");
         tranforlanguage_call("nobody", "echo", 0, NULL, &result); line = join(prefix, ":", result); free(prefix);
+    } else if (mine(e, "Server", 1)) {
+        char *prefix = join("server ", self, "");
+        tranforlanguage_server("ping", 1, me, &result); line = join(prefix, "=", result); free(prefix);
     } else if (mine(e, "Announce", 1)) {
         const char *text[1] = {"hi"}; tranforlanguage_publish("greet", 1, text);
     } else if (!strcmp(e->event, "message") && e->topic && !strcmp(e->topic, "greet") && e->argc == 1) {

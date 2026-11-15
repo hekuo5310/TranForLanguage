@@ -62,6 +62,9 @@ module TranForLanguage
     reply.fetch('result', '')
   end
 
+  # Call a game action on the server, e.g. TranForLanguage.server('teleport', 'Alex', 0, 64, 0)
+  def server(method, *args) = call('@server', method, *args)
+
   def notify(target, method, *args)
     send_action('call', target: target.to_s, method: method.to_s, args: args.map(&:to_s))
   end

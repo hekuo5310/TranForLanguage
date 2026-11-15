@@ -130,6 +130,19 @@ async function main() {
     await event('PlayerGameModeChange', async () => command('gamemode creative TFLProbe'))
     await event('PlayerGameModeChange', async () => command('gamemode survival TFLProbe'))
     await event('PlayerLevelChange', async () => command('xp add TFLProbe 3 levels'))
+    // @server actions: replies, their side effects and the events they cause.
+    await event('PlayerGameModeChange', async () => bot.chat('TFL_SERVER_PROBE'))
+    const reply = id => events('python').find(e => e.event === 'reply' && e.id === id)
+    await until(() => [0, 1, 2, 3, 4, 5, 6, 7, 8].every(i => reply('probe-' + i)), '@server replies')
+    for (const i of [0, 1, 2, 3, 4, 5, 6, 7]) assert.equal(reply('probe-' + i).ok, true, '@server probe-' + i + ': ' + JSON.stringify(reply('probe-' + i)))
+    assert.equal(JSON.parse(reply('probe-0').result).name, 'TFLProbe')
+    assert.equal(reply('probe-6').result, 'minecraft:gold_block')
+    assert.deepEqual(JSON.parse(reply('probe-7').result), ['TFLProbe'])
+    assert.equal(reply('probe-8').ok, false)
+    await until(() => bot.inventory.items().some(i => i.name === 'diamond' && i.count >= 2), 'giveItem diamonds')
+    console.log('PASS @server actions')
+    command('gamemode survival TFLProbe')
+    command('clear TFLProbe')
     await event('PlayerMove', async () => {
       bot.setControlState('forward', true); await delay(600); bot.setControlState('forward', false)
     })
@@ -168,7 +181,7 @@ async function main() {
     await allEvent('PlayerRespawn')
     await event('PlayerQuit', async () => bot.quit())
     bot = null
-    results.assertions.push('player-events', 'game-mode-and-level-change', 'rotation-not-movement', 'private-messages-and-broadcasts')
+    results.assertions.push('player-events', 'game-mode-and-level-change', 'server-actions', 'rotation-not-movement', 'private-messages-and-broadcasts')
   }
   const original = Object.fromEntries(languages.map(id => [id, pid(id)]))
   command('tranforlanguage stop c')

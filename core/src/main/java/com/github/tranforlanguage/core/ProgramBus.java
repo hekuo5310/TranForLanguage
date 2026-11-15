@@ -24,9 +24,20 @@ public final class ProgramBus implements AutoCloseable {
         /** Live sessions that accept the {@code message} event, excluding {@code source}. */
         Collection<Endpoint> subscribers(Endpoint source);
     }
+    /** Executes {@code @server} calls; {@code done} receives a result or an error message. */
+    public interface Server {
+        void call(String method, List<String> args, java.util.function.BiConsumer<String, String> done);
+    }
+    /** Reserved call target answered by the platform instead of a program. */
+    public static final String SERVER = "@server";
+    private static final Endpoint SERVER_ENDPOINT = new Endpoint() {
+        public String id() { return SERVER; }
+        public boolean deliver(String line) { return false; }
+    };
     static final int MAX_PENDING = 10000;
     private static final Gson gson = new Gson();
     private final Directory directory;
+    private final Server server;
     private final Logger logger;
     private final long timeoutMillis;
     private final AtomicLong ids = new AtomicLong();
@@ -36,11 +47,13 @@ public final class ProgramBus implements AutoCloseable {
     });
     private volatile boolean closed;
 
-    public ProgramBus(Directory directory, Logger logger) {
-        this(directory, logger, Long.getLong("tranforlanguage.call-timeout-ms", 30000L));
+    public ProgramBus(Directory directory, Logger logger) { this(directory, null, logger); }
+    public ProgramBus(Directory directory, Server server, Logger logger) {
+        this(directory, server, logger, Long.getLong("tranforlanguage.call-timeout-ms", 30000L));
     }
-    ProgramBus(Directory directory, Logger logger, long timeoutMillis) {
-        this.directory = directory; this.logger = logger; this.timeoutMillis = Math.max(1, timeoutMillis);
+    ProgramBus(Directory directory, Logger logger, long timeoutMillis) { this(directory, null, logger, timeoutMillis); }
+    ProgramBus(Directory directory, Server server, Logger logger, long timeoutMillis) {
+        this.directory = directory; this.server = server; this.logger = logger; this.timeoutMillis = Math.max(1, timeoutMillis);
     }
 
     /** Handles {@code call}, {@code reply} and {@code publish} actions from {@code source}. */
@@ -62,6 +75,7 @@ public final class ProgramBus implements AutoCloseable {
         }
         JsonArray args = arguments(message);
         if (closed) { fail(source, callerId, target, "program manager closed"); return; }
+        if (SERVER.equals(target)) { serverCall(source, callerId, method, args); return; }
         Endpoint destination = directory.find(target);
         if (destination == null) { fail(source, callerId, target, "program is not running: " + target); return; }
         JsonObject line = event("call", args); line.addProperty("from", source.id()); line.addProperty("method", method);
@@ -79,6 +93,28 @@ public final class ProgramBus implements AutoCloseable {
                 + timeoutMillis + " ms"), timeoutMillis, TimeUnit.MILLISECONDS);
         } catch (RejectedExecutionException shutdown) { complete(routed, null, "program manager closed"); return; }
         if (!destination.deliver(gson.toJson(line))) complete(routed, null, "program " + target + " cannot accept calls (stopped or queue full)");
+    }
+
+    private void serverCall(Endpoint source, JsonElement callerId, String method, JsonArray args) {
+        if (server == null) { fail(source, callerId, SERVER, "server calls are not available on this platform"); return; }
+        List<String> values = new ArrayList<>();
+        for (JsonElement arg : args) values.add(arg.getAsString());
+        if (callerId == null) {
+            server.call(method, Collections.unmodifiableList(values), (result, error) -> {
+                if (error != null) logger.warning("Server notification " + method + " from " + source.id() + " failed: " + error);
+            });
+            return;
+        }
+        if (pending.size() >= MAX_PENDING) { fail(source, callerId, SERVER, "too many pending calls"); return; }
+        long routed = ids.incrementAndGet();
+        Pending call = new Pending(source, callerId, SERVER_ENDPOINT);
+        pending.put(routed, call);
+        try {
+            call.timeout = timer.schedule(() -> complete(routed, null, "server call " + method + " timed out after "
+                + timeoutMillis + " ms"), timeoutMillis, TimeUnit.MILLISECONDS);
+        } catch (RejectedExecutionException shutdown) { complete(routed, null, "program manager closed"); return; }
+        try { server.call(method, Collections.unmodifiableList(values), (result, error) -> complete(routed, result, error)); }
+        catch (RuntimeException failure) { complete(routed, null, String.valueOf(failure.getMessage())); }
     }
 
     private void reply(Endpoint source, JsonObject message) {

@@ -265,6 +265,9 @@ int tranforlanguage_call(const char *target, const char *method, int argc, const
         }
     }
 }
+int tranforlanguage_server(const char *method, int argc, const char *const *args, char **out) {
+    return tranforlanguage_call("@server", method, argc, args, out);
+}
 int tranforlanguage_run(tranforlanguage_event_fn handler, void *user) {
     for (;;) {
         tranforlanguage_event *e; int shutdown;

@@ -14,6 +14,7 @@ TranForLanguage.on('Missing') do |source|
     TranForLanguage.broadcast("missing #{me}:#{e.message}")
   end
 end
+TranForLanguage.on('Server') { |source| TranForLanguage.broadcast("server #{me}=#{TranForLanguage.server('ping', me)}") if source == me }
 TranForLanguage.on('Announce') { |source| TranForLanguage.publish('greet', 'hi') if source == me }
 TranForLanguage.subscribe('greet') { |sender, text| TranForLanguage.broadcast("greet #{me} from #{sender}: #{text}") }
 TranForLanguage.run
