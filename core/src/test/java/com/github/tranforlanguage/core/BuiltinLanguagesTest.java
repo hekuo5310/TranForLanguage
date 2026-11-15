@@ -125,6 +125,16 @@ public class BuiltinLanguagesTest {
         receive("go.mod");
         assertEquals(module, new String(Files.readAllBytes(new File(platform.dir, "go.mod").toPath()), StandardCharsets.UTF_8));
     }
+    @Test public void rustBuildsWithRelocatedLocalPathDependency() throws Exception {
+        File src = new File(platform.dir, "localhelper/src");
+        assertTrue(src.mkdirs());
+        write("localhelper/Cargo.toml", "[package]\nname='localhelper'\nversion='0.1.0'\nedition='2021'\n");
+        write("localhelper/src/lib.rs", "pub fn hello()-> &'static str { \"local-rust\" }\n");
+        write("Cargo.toml", "[package]\nname='plugin'\nversion='0.1.0'\nedition='2021'\n[dependencies]\nlocalhelper={path='localhelper'}\n");
+        write("main.rs", "use tranforlanguage::{broadcast,run};\nfn main(){broadcast(localhelper::hello()).unwrap();run(|_|{}).unwrap();}\n");
+        runtime.reload().get(310, TimeUnit.SECONDS);
+        receive("local-rust");
+    }
     @Test public void rustCompilesWithBundledCrateAndReceivesUnicodeEvent() throws Exception {
         write("main.rs", "use tranforlanguage::{run,broadcast};fn main(){run(|e|{if e.event==\"PlayerJoin\"{broadcast(&e.args[0]).unwrap();}}).unwrap();}\n");
         try { runtime.reload().get(310, TimeUnit.SECONDS); }
