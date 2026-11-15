@@ -2,7 +2,6 @@ package com.github.tranforlanguage.core.language;
 
 import java.io.*;
 import com.google.gson.*;
-import java.util.concurrent.TimeUnit;
 import java.nio.file.Files;
 import java.util.*;
 import java.util.logging.Logger;
@@ -57,6 +56,8 @@ public class CppCompiler {
         // The shared event loop / call runtime; compiled as C++ by the C++ toolchain.
         if (!c) args.addAll(Arrays.asList("-x", "c++"));
         args.add(rpc.getAbsolutePath());
+        // Reset the C++-only language override before pkg-config flags.
+        if (!c) args.addAll(Arrays.asList("-x", "none"));
         if (configuration.has("pkgConfig")) {
             JsonArray packages = configuration.getAsJsonArray("pkgConfig");
             if (packages == null || packages.size() == 0)
@@ -73,23 +74,8 @@ public class CppCompiler {
                     throw new IllegalArgumentException("Invalid pkg-config package: " + name);
                 command.add(name);
             }
-            Process process = new ProcessBuilder(command).directory(dir).redirectErrorStream(true).start();
-            ByteArrayOutputStream output = new ByteArrayOutputStream();
-            byte[] buffer = new byte[8192];
-            // pkg-config normally emits a short line; never allow unbounded output.
-            try (InputStream stream = process.getInputStream()) {
-                int n;
-                while ((n = stream.read(buffer)) >= 0) {
-                    if (output.size() + n > 65536) throw new IOException("pkg-config output too long");
-                    output.write(buffer, 0, n);
-                }
-            } finally {
-                if (process.isAlive() && !process.waitFor(10, TimeUnit.SECONDS)) process.destroyForcibly();
-            }
-            if (process.exitValue() != 0)
-                throw new IOException("pkg-config failed: " + output.toString("UTF-8"));
-            String flags = output.toString("UTF-8").trim();
-            if (!flags.isEmpty()) args.addAll(Arrays.asList(flags.split("\\s+")));
+            String flags = ProgramFiles.capture(dir, command, 10, 65536);
+            args.addAll(ProgramFiles.splitArguments(flags));
         }
         ProgramFiles.build(dir, args, 120);
         if (!executable.isFile()) throw new IOException("Compiler did not produce the program; see compile.log");
