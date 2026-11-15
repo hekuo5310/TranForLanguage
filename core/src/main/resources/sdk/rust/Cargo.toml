@@ -7,3 +7,6 @@ license = "Apache-2.0"
 [dependencies]
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+
+# The bundled SDK is a standalone path dependency, never a member of a user's Cargo workspace.
+[workspace]
