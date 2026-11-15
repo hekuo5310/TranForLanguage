@@ -28,7 +28,7 @@ public final class GoLanguageProvider implements LanguageProvider {
             Files.copy(userMod.toPath(), new File(src, "go.mod").toPath(), StandardCopyOption.REPLACE_EXISTING);
             if (userSum.isFile()) Files.copy(userSum.toPath(), new File(src, "go.sum").toPath(), StandardCopyOption.REPLACE_EXISTING);
         } else {
-            String mod = "module tranforlanguage-program\\n\\ngo 1.21\\n";
+            String mod = "module tranforlanguage-program\n\ngo 1.21\n";
             Files.write(new File(src, "go.mod").toPath(), mod.getBytes(StandardCharsets.UTF_8));
         }
         String go = System.getProperty("tranforlanguage.go", "go");
