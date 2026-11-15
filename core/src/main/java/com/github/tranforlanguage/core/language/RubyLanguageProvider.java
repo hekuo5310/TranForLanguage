@@ -2,6 +2,8 @@ package com.github.tranforlanguage.core.language;
 
 import com.google.gson.JsonObject;
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.util.*;
 import java.util.logging.Logger;
 
@@ -22,14 +24,26 @@ public final class RubyLanguageProvider implements LanguageProvider {
         env.put("BUNDLE_PATH", bundlePath.getAbsolutePath());
         String fingerprint = ProgramFiles.fingerprint(manifest, lock.isFile() ? lock : null);
         File stamp = new File(directory, ".tranforlanguage/ruby-dependencies");
-        if (!ProgramFiles.matches(stamp, fingerprint)) {
+        String bundle = System.getProperty("tranforlanguage.bundle", "bundle");
+        boolean usable = ProgramFiles.matches(stamp, fingerprint);
+        if (usable) {
+            // A stamp alone cannot guarantee that the private gem directory still exists.
+            try {
+                ProgramFiles.build(directory, directory, Arrays.asList(bundle, "check"), env, 30);
+            } catch (IOException missing) {
+                usable = false;
+            }
+        }
+        if (!usable) {
+            Files.deleteIfExists(stamp.toPath());
             ProgramFiles.build(directory, directory, Arrays.asList(
-                System.getProperty("tranforlanguage.bundle", "bundle"), "install", "--quiet"), env, 300);
-            ProgramFiles.stamp(stamp, fingerprint);
+                bundle, "install", "--quiet"), env, 300);
+            // Bundler is allowed to create/update Gemfile.lock during install.
+            ProgramFiles.stamp(stamp, ProgramFiles.fingerprint(manifest, lock.isFile() ? lock : null));
             logger.info("Ruby dependencies installed for " + directory.getName());
         }
         List<String> bundled = new ArrayList<>();
-        bundled.add(System.getProperty("tranforlanguage.bundle", "bundle"));
+        bundled.add(bundle);
         bundled.add("exec");
         bundled.addAll(args);
         return new LaunchCommand(directory, bundled, env);
