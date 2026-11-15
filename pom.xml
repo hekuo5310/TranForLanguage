@@ -10,11 +10,22 @@
   </properties>
   <repositories><repository><id>spigot</id><url>https://hub.spigotmc.org/nexus/content/repositories/snapshots/</url></repository></repositories>
   <dependencies>
-    <dependency><groupId>org.spigotmc</groupId><artifactId>spigot-api</artifactId><version>${spigot.version}</version><scope>provided</scope><exclusions><exclusion><groupId>net.md-5</groupId><artifactId>bungeecord-chat</artifactId></exclusion></exclusions></dependency>
+    <!-- Use Spigot's API only. Its internal runtime libraries are supplied by the server;
+         some historical snapshot POMs point to unavailable transitive versions. -->
+    <dependency><groupId>org.spigotmc</groupId><artifactId>spigot-api</artifactId><version>${spigot.version}</version><scope>provided</scope>
+      <exclusions>
+        <exclusion><groupId>net.md-5</groupId><artifactId>bungeecord-chat</artifactId></exclusion>
+        <exclusion><groupId>com.google.guava</groupId><artifactId>guava</artifactId></exclusion>
+        <exclusion><groupId>com.google.code.gson</groupId><artifactId>gson</artifactId></exclusion>
+        <exclusion><groupId>org.yaml</groupId><artifactId>snakeyaml</artifactId></exclusion>
+      </exclusions>
+    </dependency>
     <dependency><groupId>com.google.code.gson</groupId><artifactId>gson</artifactId><version>2.10.1</version></dependency>
     <dependency><groupId>net.kyori</groupId><artifactId>adventure-text-minimessage</artifactId><version>4.17.0</version></dependency>
     <dependency><groupId>net.kyori</groupId><artifactId>adventure-text-serializer-legacy</artifactId><version>4.17.0</version></dependency>
     <dependency><groupId>junit</groupId><artifactId>junit</artifactId><version>4.13.2</version><scope>test</scope></dependency>
+    <!-- PluginDescriptorTest uses YAML explicitly; keep the parser test-only and versioned. -->
+    <dependency><groupId>org.yaml</groupId><artifactId>snakeyaml</artifactId><version>1.33</version><scope>test</scope></dependency>
   </dependencies>
   <build>
     <testResources><testResource><directory>core/src/test/resources</directory></testResource></testResources>
