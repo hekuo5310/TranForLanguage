@@ -1,0 +1,9 @@
+package com.github.tranforlanguage.minecraft;
+
+import net.minecraft.server.level.ServerPlayer;
+
+/** Generated per Minecraft version for members whose name or visibility changed between releases. */
+public final class Versions {
+    private Versions() {}
+    public static int selectedSlot(ServerPlayer player) { return @SELECTED_SLOT@; }
+}

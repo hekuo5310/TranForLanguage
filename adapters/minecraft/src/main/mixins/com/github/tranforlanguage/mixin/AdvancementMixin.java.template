@@ -1,0 +1,24 @@
+package com.github.tranforlanguage.mixin;
+import com.github.tranforlanguage.minecraft.ModEvents;
+import net.minecraft.advancements.AdvancementProgress;
+import net.minecraft.server.PlayerAdvancements;
+import net.minecraft.server.level.ServerPlayer;
+import org.spongepowered.asm.mixin.*;
+import org.spongepowered.asm.mixin.injection.*;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+/** Reports an advancement once, when the awarded criterion completes it (like Bukkit's PlayerAdvancementDoneEvent). */
+@Mixin(PlayerAdvancements.class)
+abstract class AdvancementMixin {
+    @Shadow private ServerPlayer player;
+    @Unique private boolean tranforlanguage$wasDone;
+    @Shadow public abstract AdvancementProgress getOrStartProgress(@ADVANCEMENT@ advancement);
+    @Inject(method = "award", at = @At("HEAD"))
+    private void tranforlanguage$before(@ADVANCEMENT@ advancement, String criterion, CallbackInfoReturnable<Boolean> cir) {
+        tranforlanguage$wasDone = getOrStartProgress(advancement).isDone();
+    }
+    @Inject(method = "award", at = @At("RETURN"))
+    private void tranforlanguage$after(@ADVANCEMENT@ advancement, String criterion, CallbackInfoReturnable<Boolean> cir) {
+        if (cir.getReturnValueZ() && !tranforlanguage$wasDone && getOrStartProgress(advancement).isDone())
+            ModEvents.emit("PlayerAdvancement", player.getName().getString(), @ADVANCEMENT_ID@);
+    }
+}

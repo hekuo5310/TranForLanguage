@@ -20,7 +20,8 @@ public final class ModEvents {
     /** Last observed player state; changes are reported once per tick, never on first sight. */
     private static final class Position {
         double x, y, z; ServerLevel level;
-        String gameMode; int experience; boolean sneaking, sprinting, flying, sleeping;
+        String gameMode; int experience, slot, food; Entity vehicle;
+        boolean sneaking, sprinting, flying, sleeping, gliding, swimming;
         Position(ServerPlayer player) { update(player); }
         boolean changed(ServerPlayer player) { return level != player.level() || x != player.getX() || y != player.getY() || z != player.getZ(); }
         void update(ServerPlayer player) {
@@ -28,12 +29,16 @@ public final class ModEvents {
             gameMode = player.gameMode.getGameModeForPlayer().name(); experience = player.experienceLevel;
             sneaking = player.isShiftKeyDown(); sprinting = player.isSprinting();
             flying = player.getAbilities().flying; sleeping = player.isSleeping();
+            slot = Versions.selectedSlot(player); food = player.getFoodData().getFoodLevel(); vehicle = player.getVehicle();
+            gliding = player.isFallFlying(); swimming = player.isSwimming();
         }
         /** Emits state-change events by comparing with the new state, then stores it. */
         boolean report(ServerPlayer player) {
             String name = player.getName().getString();
             ServerLevel previousLevel = level; String previousMode = gameMode; int previousExperience = experience;
             boolean wasSneaking = sneaking, wasSprinting = sprinting, wasFlying = flying, wasSleeping = sleeping;
+            int previousSlot = slot, previousFood = food; Entity previousVehicle = vehicle;
+            boolean wasGliding = gliding, wasSwimming = swimming;
             boolean moved = changed(player);
             update(player);
             if (previousLevel != level) emit("PlayerChangeWorld", name, previousLevel.dimension().toString(), level.dimension().toString());
@@ -44,6 +49,14 @@ public final class ModEvents {
             if (wasFlying != flying) emit("PlayerToggleFlight", name, String.valueOf(flying));
             if (!wasSleeping && sleeping) emit("PlayerBedEnter", name);
             if (wasSleeping && !sleeping) emit("PlayerBedLeave", name);
+            if (previousSlot != slot) emit("PlayerItemHeld", name, String.valueOf(previousSlot), String.valueOf(slot));
+            if (previousFood != food) emit("PlayerFoodLevelChange", name, String.valueOf(previousFood), String.valueOf(food));
+            if (previousVehicle != vehicle) {
+                if (previousVehicle != null) emit("PlayerVehicleExit", name, previousVehicle.getType().toString());
+                if (vehicle != null) emit("PlayerVehicleEnter", name, vehicle.getType().toString());
+            }
+            if (wasGliding != gliding) emit("PlayerToggleGlide", name, String.valueOf(gliding));
+            if (wasSwimming != swimming) emit("PlayerToggleSwim", name, String.valueOf(swimming));
             return moved;
         }
     }
