@@ -68,8 +68,54 @@ public class BuiltinLanguagesTest {
         write("main.js", "const t=require('tranforlanguage');t.broadcast('npm');t.run();\n");
         runtime.reload().get(180, TimeUnit.SECONDS);
         receive("npm");
-        assertTrue(new File(platform.dir, ".tranforlanguage/node-project/.tfl-dependencies").isFile());
+        assertTrue(new File(platform.dir, ".tranforlanguage/node-dependencies").isFile());
         assertFalse(new File(platform.dir, "node_modules").exists());
+    }
+    @Test public void javascriptResolvesLocalFileDependenciesWithoutRewritingManifest() throws Exception {
+        File local = new File(platform.dir, "local-package");
+        assertTrue(local.mkdirs());
+        write("local-package/package.json", "{\"name\":\"tfl-local\",\"version\":\"1.0.0\",\"main\":\"index.js\"}\n");
+        write("local-package/index.js", "module.exports='local-npm';\n");
+        String manifest = "{\"name\":\"tfl-plugin\",\"version\":\"1.0.0\",\"dependencies\":{\"tfl-local\":\"file:./local-package\"}}\n";
+        write("package.json", manifest);
+        write("main.js", "const t=require('tranforlanguage');t.broadcast(require('tfl-local'));t.run();\n");
+        runtime.reload().get(180, TimeUnit.SECONDS);
+        receive("local-npm");
+        assertEquals(manifest, new String(Files.readAllBytes(new File(platform.dir, "package.json").toPath()), StandardCharsets.UTF_8));
+        assertTrue(new File(platform.dir, "node_modules/tfl-local").exists());
+    }
+    @Test public void pythonNestedRequirementsAndConstraintsInvalidateCache() throws Exception {
+        write("requirements.txt", "-r nested.txt\n-c constraints.txt\n");
+        write("nested.txt", "# first\n");
+        write("constraints.txt", "# constraint\n");
+        write("main.py", "from tranforlanguage import broadcast,run\nbroadcast('nested');run()\n");
+        runtime.reload().get(180, TimeUnit.SECONDS);
+        receive("nested");
+        File stamp = new File(platform.dir, ".tranforlanguage/python-venv/.tfl-requirements");
+        String first = new String(Files.readAllBytes(stamp.toPath()), StandardCharsets.UTF_8);
+        write("nested.txt", "# second\n");
+        platform.message = null;
+        runtime.reload().get(180, TimeUnit.SECONDS);
+        receive("nested");
+        String second = new String(Files.readAllBytes(stamp.toPath()), StandardCharsets.UTF_8);
+        assertNotEquals(first, second);
+        write("constraints.txt", "# updated\n");
+        platform.message = null;
+        runtime.reload().get(180, TimeUnit.SECONDS);
+        receive("nested");
+        assertNotEquals(second, new String(Files.readAllBytes(stamp.toPath()), StandardCharsets.UTF_8));
+    }
+    @Test public void goRelocatesRelativeModuleReplacements() throws Exception {
+        File local = new File(platform.dir, "localdep");
+        assertTrue(local.mkdirs());
+        write("localdep/go.mod", "module example.com/tfl-local\n\ngo 1.21\n");
+        write("localdep/hello.go", "package localdep\nfunc Hello() string{return \"local-go\"}\n");
+        String manifest = "module example.com/plugin\n\ngo 1.21\n\nrequire example.com/tfl-local v0.0.0\nreplace example.com/tfl-local => ./localdep\n";
+        write("go.mod", manifest);
+        write("main.go", "package main\nimport t \"tranforlanguage\"\nimport local \"example.com/tfl-local\"\nfunc main(){t.Broadcast(local.Hello());t.Run()}\n");
+        runtime.reload().get(300, TimeUnit.SECONDS);
+        receive("local-go");
+        assertEquals(manifest, new String(Files.readAllBytes(new File(platform.dir, "go.mod").toPath()), StandardCharsets.UTF_8));
     }
     @Test public void goUsesPluginModuleWithoutRewritingIt() throws Exception {
         String module = "module example.com/plugin\n\ngo 1.21\n";
