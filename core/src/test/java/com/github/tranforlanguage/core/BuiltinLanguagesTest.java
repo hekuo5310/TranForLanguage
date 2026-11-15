@@ -88,6 +88,16 @@ public class BuiltinLanguagesTest {
     @Test public void javaCompilesWithBundledSdkAndReceivesUnicodeEvent() throws Exception {
         roundTrip("Main.java", "import tranforlanguage.TranForLanguage;\npublic class Main{public static void main(String[] a){TranForLanguage.on(\"PlayerJoin\",p->TranForLanguage.broadcast(p[0]));TranForLanguage.run();}}\n", 120);
     }
+    private void reloadWithDiagnostics(int seconds) throws Exception {
+        try { runtime.reload().get(seconds, TimeUnit.SECONDS); }
+        catch (ExecutionException failure) {
+            File output = new File(platform.dir, "compile.log");
+            String details = output.isFile() ? new String(Files.readAllBytes(output.toPath()), StandardCharsets.UTF_8)
+                : "compile.log not created";
+            throw new AssertionError("Managed language preparation failed:\n" + details, failure);
+        }
+    }
+
     @Test public void pythonInstallsOfflineWheelAndReusesVenv() throws Exception {
         File wheelFile = new File(platform.dir, "tfl_sample-1.0-py3-none-any.whl");
         java.util.Map<String, String> entries = new java.util.LinkedHashMap<>();
@@ -130,7 +140,7 @@ public class BuiltinLanguagesTest {
         write("package.json", "{\"name\":\"tfl-test\",\"version\":\"1.0.0\",\"dependencies\":{\"tfl-offline-dependency\":\""
             + archive.toURI().toASCIIString() + "\"}}");
         write("main.js", "const t=require('tranforlanguage');t.broadcast(require('tfl-offline-dependency'));t.run();\n");
-        runtime.reload().get(120, TimeUnit.SECONDS);
+        reloadWithDiagnostics(120);
         File installed = new File(platform.dir, ".tranforlanguage/node-project/node_modules/tfl-offline-dependency");
         assertTrue("npm package missing; compile.log: " + new String(Files.readAllBytes(
             new File(platform.dir, "compile.log").toPath()), StandardCharsets.UTF_8), installed.exists());
@@ -167,7 +177,7 @@ public class BuiltinLanguagesTest {
         write("Cargo.toml", "[package]\nname=\"tfl-program\"\nversion=\"0.1.0\"\nedition=\"2021\"\n[dependencies]\ntfl-extra={path="
             + new com.google.gson.Gson().toJson(dep.getAbsolutePath()) + "}\n");
         write("main.rs", "use tranforlanguage::{broadcast,run};\nfn main(){broadcast(tfl_extra::message()).unwrap();run(|_|{}).unwrap();}\n");
-        runtime.reload().get(310, TimeUnit.SECONDS);
+        reloadWithDiagnostics(310);
         receive("cargo-dependency-ok");
         assertTrue(new File(platform.dir, "Cargo.toml").isFile());
     }
