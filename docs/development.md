@@ -106,7 +106,7 @@ TFL 使用各语言的常见依赖清单；**没有清单时沿用原先的运�
 | --- | --- | --- |
 | Python | `requirements.txt` | `python -m venv` 创建 `.tranforlanguage/python-venv/`，用该环境的 `pip install -r` 安装。内容变更后重新创建环境；需 `venv` 和 `pip` |
 | JavaScript | `package.json`（可选 `package-lock.json`） | 在插件目录下安装独立的 `node_modules/`，以保留 `file:` 本地依赖的相对路径；有锁文件时使用 `npm ci`，否则 `npm install --no-package-lock`。通过 `NODE_PATH` 加载，不改动用户的入口源码或清单 |
-| Rust | `Cargo.toml` | 使用 TOML 解析器修改托管副本：重定位相对路径依赖、保留 SDK 依赖的原有 features，并创建独立工作区；从原工作区继承所需共享配置。用户清单不变 |
+| Rust | `Cargo.toml` | 使用 TOML 解析器修改托管副本：重定位相对路径依赖、保留 SDK 依赖原有 features，并创建独立工作区；插件目录内的本地路径 crate 复制到托管工作区，避免触碰原始清单及其 Cargo 工作区发现规则。原工作区的共享配置可继承 |
 | Go | `go.mod`（可选 `go.sum`） | 将文件复制进托管构建目录，使用 `go mod edit` 注入 TFL SDK 的本地 `replace`；原始文件保持不变 |
 | Ruby | `Gemfile`（可选 `Gemfile.lock`） | 通过 Bundler `bundle install` 安装到 `.tranforlanguage/ruby-gems/`，使用 `bundle exec ruby` 启动；需安装 `bundle` |
 | PHP | `composer.json`（可选 `composer.lock`） | 通过 Composer 安装到插件自己的 `vendor/`；需安装 `composer`，用户代码按 Composer 规范自行 `require __DIR__ . '/vendor/autoload.php';` |
