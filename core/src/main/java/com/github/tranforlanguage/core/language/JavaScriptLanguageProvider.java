@@ -16,25 +16,31 @@ public final class JavaScriptLanguageProvider implements LanguageProvider {
         File modules = null;
         if (manifest.isFile()) {
             File lock = new File(directory, "package-lock.json");
-            File project = new File(directory, ".tranforlanguage/node-project");
-            Files.createDirectories(project.toPath());
+            // Run npm in the ORIGINAL directory: file: dependencies and lockfile links
+            // must retain their original relative-path context.
+            File stamp = new File(directory, ".tranforlanguage/node-dependencies");
+            modules = new File(directory, "node_modules");
             String fingerprint = ProgramFiles.fingerprint(manifest, lock.isFile() ? lock : null);
-            File stamp = new File(project, ".tfl-dependencies");
-            if (!ProgramFiles.matches(stamp, fingerprint)) {
-                ProgramFiles.deleteTree(new File(project, "node_modules"));
-                Files.copy(manifest.toPath(), new File(project, "package.json").toPath(),
-                    java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-                File targetLock = new File(project, "package-lock.json");
-                if (lock.isFile()) Files.copy(lock.toPath(), targetLock.toPath(),
-                    java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-                else Files.deleteIfExists(targetLock.toPath());
-                ProgramFiles.build(directory, project, Arrays.asList(
-                    System.getProperty("tranforlanguage.npm", "npm"),
-                    lock.isFile() ? "ci" : "install", "--no-audit", "--no-fund"), Collections.emptyMap(), 300);
-                ProgramFiles.stamp(stamp, fingerprint);
+            com.google.gson.JsonObject packageJson = new com.google.gson.Gson().fromJson(
+                new String(Files.readAllBytes(manifest.toPath()), java.nio.charset.StandardCharsets.UTF_8),
+                com.google.gson.JsonObject.class);
+            boolean hasPackages = false;
+            for (String key : Arrays.asList("dependencies", "devDependencies", "optionalDependencies")) {
+                if (packageJson.has(key) && packageJson.get(key).isJsonObject()
+                    && packageJson.getAsJsonObject(key).size() > 0) hasPackages = true;
+            }
+            if (!ProgramFiles.matches(stamp, fingerprint) || (hasPackages && !modules.isDirectory())) {
+                Files.deleteIfExists(stamp.toPath());
+                ProgramFiles.deleteTree(modules);
+                List<String> command = new ArrayList<>();
+                command.add(System.getProperty("tranforlanguage.npm", "npm"));
+                command.add(lock.isFile() ? "ci" : "install");
+                command.addAll(Arrays.asList("--no-save", "--no-audit", "--no-fund"));
+                if (!lock.isFile()) command.add("--no-package-lock");
+                ProgramFiles.build(directory, directory, command, Collections.emptyMap(), 300);
+                ProgramFiles.stamp(stamp, ProgramFiles.fingerprint(manifest, lock.isFile() ? lock : null));
                 logger.info("JavaScript dependencies installed for " + directory.getName());
             }
-            modules = new File(project, "node_modules");
         }
         Map<String, String> environment = new HashMap<>();
         StringBuilder path = new StringBuilder(sdk.getAbsolutePath());
