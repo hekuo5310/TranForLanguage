@@ -139,7 +139,7 @@ final class CargoManifest {
                 }
             }
             TomlParseResult manifest = read(new File(source, "Cargo.toml"));
-            relocate(manifest, source, this);
+            CargoManifest.relocate(manifest, source, this);
             Files.write(new File(target, "Cargo.toml").toPath(),
                 manifest.toToml().getBytes(StandardCharsets.UTF_8));
         }
