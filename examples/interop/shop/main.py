@@ -1,5 +1,5 @@
 # shop sells items: "!buy <item>" in chat calls the Go economy program, then tells everyone.
-from tranforcpp import CallError, call, handle, on, publish, run, send_message
+from tranforlanguage import CallError, call, handle, on, publish, run, send_message
 
 PRICES = {"apple": 10, "sword": 60}
 

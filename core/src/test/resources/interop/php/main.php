@@ -1,17 +1,17 @@
 <?php
-$me = Tranfor::programId();
-Tranfor::handle('echo', fn($value = '') => "$me:$value");
-Tranfor::handle('bounce', fn($target, $value) => Tranfor::call($target, 'echo', $value));
-Tranfor::on('Ping', function ($source, $target) use ($me) {
-    if ($source === $me) Tranfor::broadcast("{$me}->" . Tranfor::call($target, 'echo', $me));
+$me = TranForLanguage::programId();
+TranForLanguage::handle('echo', fn($value = '') => "$me:$value");
+TranForLanguage::handle('bounce', fn($target, $value) => TranForLanguage::call($target, 'echo', $value));
+TranForLanguage::on('Ping', function ($source, $target) use ($me) {
+    if ($source === $me) TranForLanguage::broadcast("{$me}->" . TranForLanguage::call($target, 'echo', $me));
 });
-Tranfor::on('Nested', function ($source, $via) use ($me) {
-    if ($source === $me) Tranfor::broadcast("nested $me=" . Tranfor::call($via, 'bounce', $me, $me));
+TranForLanguage::on('Nested', function ($source, $via) use ($me) {
+    if ($source === $me) TranForLanguage::broadcast("nested $me=" . TranForLanguage::call($via, 'bounce', $me, $me));
 });
-Tranfor::on('Missing', function ($source) use ($me) {
+TranForLanguage::on('Missing', function ($source) use ($me) {
     if ($source !== $me) return;
-    try { Tranfor::call('nobody', 'echo'); } catch (TranforCallError $e) { Tranfor::broadcast("missing $me:" . $e->getMessage()); }
+    try { TranForLanguage::call('nobody', 'echo'); } catch (TranForLanguageCallError $e) { TranForLanguage::broadcast("missing $me:" . $e->getMessage()); }
 });
-Tranfor::on('Announce', function ($source) use ($me) { if ($source === $me) Tranfor::publish('greet', 'hi'); });
-Tranfor::subscribe('greet', function ($sender, $text) use ($me) { Tranfor::broadcast("greet $me from $sender: $text"); });
-Tranfor::run();
+TranForLanguage::on('Announce', function ($source) use ($me) { if ($source === $me) TranForLanguage::publish('greet', 'hi'); });
+TranForLanguage::subscribe('greet', function ($sender, $text) use ($me) { TranForLanguage::broadcast("greet $me from $sender: $text"); });
+TranForLanguage::run();

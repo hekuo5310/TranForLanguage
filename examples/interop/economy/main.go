@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"sync"
 
-	t "tranforcpp"
+	t "tranforlanguage"
 )
 
 func main() {

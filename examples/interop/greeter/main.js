@@ -1,5 +1,5 @@
 // greeter asks the Go and Python programs for data and reacts to purchases they publish.
-const t = require('tranforcpp');
+const t = require('tranforlanguage');
 
 t.on('PlayerJoin', async (player) => {
   // Give economy a moment to see the same join event before asking for the balance.

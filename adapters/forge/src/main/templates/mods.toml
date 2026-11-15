@@ -2,17 +2,17 @@ modLoader="javafml"
 loaderVersion="[46,)"
 license="Apache-2.0"
 [[mods]]
-modId="tranforcpp"
+modId="tranforlanguage"
 version="${version}"
 displayName="TranForLanguage"
 description='''Language-neutral program bridge for Minecraft servers'''
-[[dependencies.tranforcpp]]
+[[dependencies.tranforlanguage]]
 modId="minecraft"
 mandatory=true
 versionRange="[${minecraft_version}]"
 ordering="NONE"
 side="SERVER"
-[[dependencies.tranforcpp]]
+[[dependencies.tranforlanguage]]
 modId="forge"
 mandatory=true
 versionRange="[${loader_version},)"

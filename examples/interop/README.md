@@ -1,6 +1,6 @@
 # 跨语言互相调用示例
 
-把 `economy/`、`shop/`、`greeter/` 三个目录复制到程序目录（Spigot：`plugins/C++ Plugins/`，模组端：`config/tranforcpp/programs/`）后执行 `/tranforlanguage reload`。
+把 `economy/`、`shop/`、`greeter/` 三个目录复制到程序目录（Spigot：`plugins/TranForLanguage/programs/`，模组端：`config/tranforlanguage/programs/`）后执行 `/tranforlanguage reload`。
 
 | 插件 ID | 语言 | 作用 |
 | --- | --- | --- |

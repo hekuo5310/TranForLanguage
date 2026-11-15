@@ -1,6 +1,6 @@
 package main
 
-import t "tranforcpp"
+import t "tranforlanguage"
 
 func main() {
 	t.On("PlayerJoin", func(args []string) {

@@ -1,6 +1,6 @@
 // Shared compilation inputs; all game references are compiled by the loader toolchain.
 version = new groovy.xml.XmlSlurper().parse(file('../../pom.xml')).version.text()
-group = 'com.github.tranforcpp'
+group = 'com.github.tranforlanguage'
 def mc = minecraft_version
 boolean forgeBus7 = project.name == 'forge' && mc.startsWith('1.21.') && (mc.split('\\.')[2] as int) >= 6
 boolean modernPermissions = mc.startsWith('26.') || mc == '1.21.11'
@@ -21,13 +21,13 @@ def generate = tasks.register('generateAdapter') {
     doLast {
         def dest = layout.buildDirectory.dir('generated/adapter').get().asFile
         delete dest
-        def shared = new File(dest, 'com/github/tranforcpp/minecraft')
+        def shared = new File(dest, 'com/github/tranforlanguage/minecraft')
         shared.mkdirs()
-        new File(shared, 'BridgeCommands.java').text = file('../minecraft/src/main/java/com/github/tranforcpp/minecraft/BridgeCommands.java.template').getText('UTF-8').replace('@PERMISSION@', permission).replace('@VERSION@', project.version.toString())
-        def mixins = new File(dest, 'com/github/tranforcpp/mixin')
+        new File(shared, 'BridgeCommands.java').text = file('../minecraft/src/main/java/com/github/tranforlanguage/minecraft/BridgeCommands.java.template').getText('UTF-8').replace('@PERMISSION@', permission).replace('@VERSION@', project.version.toString())
+        def mixins = new File(dest, 'com/github/tranforlanguage/mixin')
         mixins.mkdirs()
         ['PlayerDropMixin.java', 'InventoryClickMixin.java', 'DamageMixin.java'].each { name ->
-            def source = file('../minecraft/src/main/mixins/com/github/tranforcpp/mixin/' + name + '.template').getText('UTF-8')
+            def source = file('../minecraft/src/main/mixins/com/github/tranforlanguage/mixin/' + name + '.template').getText('UTF-8')
             if (mc.startsWith('26.')) {
                 source = source.replace('ClickType', 'ContainerInput')
             }
@@ -49,20 +49,20 @@ def generate = tasks.register('generateAdapter') {
             new File(mixins, name).setText(source, 'UTF-8')
         }
         if (project.name == 'fabric') {
-            def target = new File(dest, 'com/github/tranforcpp/fabric/TranforFabric.java')
+            def target = new File(dest, 'com/github/tranforlanguage/fabric/TranForLanguageFabric.java')
             target.parentFile.mkdirs()
-            def source = file('../fabric/src/main/templates/TranforFabric.java').getText('UTF-8')
+            def source = file('../fabric/src/main/templates/TranForLanguageFabric.java').getText('UTF-8')
             if (mc.startsWith('26.')) source = source.replace('ServerWorldEvents', 'ServerLevelEvents')
             target.setText(source, 'UTF-8')
-            def mixin = new File(dest, 'com/github/tranforcpp/mixin/FabricCommandMixin.java')
+            def mixin = new File(dest, 'com/github/tranforlanguage/mixin/FabricCommandMixin.java')
             mixin.parentFile.mkdirs()
-            mixin.setText(file('../fabric/src/main/mixins/com/github/tranforcpp/mixin/FabricCommandMixin.java.template').getText('UTF-8').replace('@COMMAND_CALLBACK@', mc in ['1.20', '1.20.1'] ? 'CallbackInfoReturnable<Integer>' : 'CallbackInfo'), 'UTF-8')
+            mixin.setText(file('../fabric/src/main/mixins/com/github/tranforlanguage/mixin/FabricCommandMixin.java.template').getText('UTF-8').replace('@COMMAND_CALLBACK@', mc in ['1.20', '1.20.1'] ? 'CallbackInfoReturnable<Integer>' : 'CallbackInfo'), 'UTF-8')
         } else {
             boolean neo = project.name == 'neoforge'
-            def target = new File(dest, "com/github/tranforcpp/${project.name}/TranforForge.java")
+            def target = new File(dest, "com/github/tranforlanguage/${project.name}/TranForLanguageForge.java")
             target.parentFile.mkdirs()
             def replacements = [LOADER: project.name, FML: neo ? 'net.neoforged.fml' : 'net.minecraftforge.fml', EVENTBUS: neo ? 'net.neoforged.bus.api' : (forgeBus7 ? 'net.minecraftforge.eventbus.api.listener' : 'net.minecraftforge.eventbus.api'), ROOT: neo ? 'net.neoforged.neoforge' : 'net.minecraftforge', BUS: neo ? 'net.neoforged.neoforge.common.NeoForge' : 'net.minecraftforge.common.MinecraftForge', LEVEL: 'level', REGISTER: forgeBus7 ? 'net.minecraftforge.eventbus.api.bus.BusGroup.DEFAULT.register(java.lang.invoke.MethodHandles.lookup(), this)' : ((neo ? 'net.neoforged.neoforge.common.NeoForge' : 'net.minecraftforge.common.MinecraftForge') + '.EVENT_BUS.register(this)')]
-            def source = file('../forge/src/main/templates/TranforForge.java').getText('UTF-8')
+            def source = file('../forge/src/main/templates/TranForLanguageForge.java').getText('UTF-8')
             replacements.each { key, value -> source = source.replace("@${key}@", value) }
             if (neo && mc.startsWith('26.') && !(mc in ['26.1', '26.1.1'])) source = source.replace('BlockEvent.BreakEvent', 'net.neoforged.neoforge.event.level.block.BreakBlockEvent')
             target.setText(source, 'UTF-8')
@@ -76,7 +76,7 @@ def mixinResources = tasks.register('generateMixinResources') {
     inputs.property('minecraft', mc)
     outputs.dir(layout.buildDirectory.dir('generated/mixin-resources'))
     doLast {
-        def config = [required: true, minVersion: '0.8', package: 'com.github.tranforcpp.mixin', compatibilityLevel: 'JAVA_17',
+        def config = [required: true, minVersion: '0.8', package: 'com.github.tranforlanguage.mixin', compatibilityLevel: 'JAVA_17',
             mixins: ['ServerTickMixin', 'InventoryClickMixin', 'PlayerDropMixin', 'ItemPickupMixin', 'DamageMixin', 'HangingBreakMixin', 'BlockIgniteMixin'], injectors: [defaultRequire: 1]]
         if (project.name == 'fabric') config.mixins.addAll(['FabricPlaceMixin', 'FabricMenuMixin', 'FabricCommandMixin'])
         if (project.name == 'forge' && !forge_gradle_version.startsWith('7.')) config.refmap = 'tranforlanguage.refmap.json'
@@ -96,7 +96,6 @@ processResources {
     def properties = [version: project.version, minecraft_version: minecraft_version, loader_version: loader_version, java_version: java_version]
     inputs.properties properties
     filesMatching(['fabric.mod.json', 'META-INF/*.toml']) { expand properties }
-    from('../../tranforcpp_api.h')
     from('../../core/src/main/resources')
 }
 jar { from('../../LICENSE') }

@@ -1,38 +1,22 @@
 name: TranForLanguage
 version: '${project.version}'
 api-version: '1.13'
-main: com.github.tranforcpp.TranforCPlusPlus
+main: com.github.tranforlanguage.TranForLanguage
 author: 'hekuo,Xiao-QDev'
 description: '在 Minecraft 服务端运行 C、C++、Python、Rust、JavaScript、Go、Ruby、PHP 和 Java 程序，并支持程序间互相调用'
 permissions:
   tranforlanguage.use:
     description: Allow using TranForLanguage commands
     default: op
-    children:
-      tranforcpp.use: true
   tranforlanguage.reload:
-    description: Allow reloading programs
+    description: Allow starting, stopping and reloading programs
     default: op
-    children:
-      tranforcpp.reload: true
   tranforlanguage.version:
     description: Allow checking the project version
-    default: op
-    children:
-      tranforcpp.version: true
-  tranforcpp.use:
-    description: Legacy command permission
-    default: op
-  tranforcpp.reload:
-    description: Legacy reload permission
-    default: op
-  tranforcpp.version:
-    description: Allow checking plugin version
     default: op
 
 commands:
   tranforlanguage:
     description: Manage TranForLanguage programs
     usage: /<command> <list|version|reload [id]|start id|stop id>
-    aliases: [tranforcpp, cpp]
-    permission: tranforcpp.use
+    permission: tranforlanguage.use

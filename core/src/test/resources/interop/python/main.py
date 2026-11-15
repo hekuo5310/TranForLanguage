@@ -1,4 +1,4 @@
-from tranforcpp import CallError, broadcast, call, handle, on, program_id as me, publish, run, subscribe
+from tranforlanguage import CallError, broadcast, call, handle, on, program_id as me, publish, run, subscribe
 
 
 @handle("echo")

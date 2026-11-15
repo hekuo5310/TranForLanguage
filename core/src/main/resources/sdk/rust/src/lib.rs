@@ -80,7 +80,7 @@ pub fn dispatch_command(command: &str) -> io::Result<()> {
 }
 
 /// This program's ID as the server knows it (directory name or `@root`).
-pub fn program_id() -> String { std::env::var("TRANFORCPP_PROGRAM_ID").unwrap_or_default() }
+pub fn program_id() -> String { std::env::var("TRANFORLANGUAGE_PROGRAM_ID").unwrap_or_default() }
 
 /// Expose `name` to other programs. `Err` text is returned to the caller as an error.
 pub fn handle<F>(name: &str, method: F)
@@ -140,7 +140,7 @@ fn serve(event: &Event) {
         None => Err(format!("unknown method {}", event.method.as_deref().unwrap_or(""))),
     };
     let Some(id) = &event.id else {
-        if let Err(error) = outcome { eprintln!("tranforcpp: notification failed: {error}"); }
+        if let Err(error) = outcome { eprintln!("tranforlanguage: notification failed: {error}"); }
         return;
     };
     let _ = match outcome {

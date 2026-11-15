@@ -11,26 +11,26 @@ static int echo(int argc, char **args, char **result, void *user) {
 static int bounce(int argc, char **args, char **result, void *user) {
     const char *forward[1];
     (void)user;
-    if (argc < 2) { *result = tranforcpp_strdup("bounce needs target and value"); return 0; }
+    if (argc < 2) { *result = tranforlanguage_strdup("bounce needs target and value"); return 0; }
     forward[0] = args[1];
-    return tranforcpp_call(args[0], "echo", 1, forward, result);
+    return tranforlanguage_call(args[0], "echo", 1, forward, result);
 }
-static int mine(const tranforcpp_event *e, const char *name, int argc) {
+static int mine(const tranforlanguage_event *e, const char *name, int argc) {
     return !strcmp(e->event, name) && e->argc >= argc && !strcmp(e->args[0], self);
 }
-static void on_event(const tranforcpp_event *e, void *user) {
+static void on_event(const tranforlanguage_event *e, void *user) {
     char *result = NULL, *line = NULL; const char *me[1]; (void)user; me[0] = self;
     if (mine(e, "Ping", 2)) {
-        tranforcpp_call(e->args[1], "echo", 1, me, &result); line = join(self, "->", result);
+        tranforlanguage_call(e->args[1], "echo", 1, me, &result); line = join(self, "->", result);
     } else if (mine(e, "Nested", 2)) {
         const char *args[2]; char *prefix = join("nested ", self, "");
         args[0] = self; args[1] = self;
-        tranforcpp_call(e->args[1], "bounce", 2, args, &result); line = join(prefix, "=", result); free(prefix);
+        tranforlanguage_call(e->args[1], "bounce", 2, args, &result); line = join(prefix, "=", result); free(prefix);
     } else if (mine(e, "Missing", 1)) {
         char *prefix = join("missing ", self, "");
-        tranforcpp_call("nobody", "echo", 0, NULL, &result); line = join(prefix, ":", result); free(prefix);
+        tranforlanguage_call("nobody", "echo", 0, NULL, &result); line = join(prefix, ":", result); free(prefix);
     } else if (mine(e, "Announce", 1)) {
-        const char *text[1] = {"hi"}; tranforcpp_publish("greet", 1, text);
+        const char *text[1] = {"hi"}; tranforlanguage_publish("greet", 1, text);
     } else if (!strcmp(e->event, "message") && e->topic && !strcmp(e->topic, "greet") && e->argc == 1) {
         char *a = join("greet ", self, " from "), *b = join(a, e->from ? e->from : "", ": ");
         line = join(b, "", e->args[0]); free(a); free(b);
@@ -39,8 +39,8 @@ static void on_event(const tranforcpp_event *e, void *user) {
     free(line); free(result);
 }
 int main(void) {
-    self = getenv("TRANFORCPP_PROGRAM_ID");
-    tranforcpp_handle("echo", echo, NULL);
-    tranforcpp_handle("bounce", bounce, NULL);
-    return tranforcpp_run(on_event, NULL);
+    self = getenv("TRANFORLANGUAGE_PROGRAM_ID");
+    tranforlanguage_handle("echo", echo, NULL);
+    tranforlanguage_handle("bounce", bounce, NULL);
+    return tranforlanguage_run(on_event, NULL);
 }

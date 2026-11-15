@@ -1,5 +1,5 @@
 /* Built with the C SDK (as C11) and the C++ SDK (as C++17); keep it valid in both. */
-#include "tranforcpp_rpc.h"
+#include "tranforlanguage_rpc.h"
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -8,15 +8,15 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-pthread_mutex_t tranforcpp_output_mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t tranforlanguage_output_mutex = PTHREAD_MUTEX_INITIALIZER;
 #ifdef __cplusplus
 }
 #endif
 
-void tranforcpp_lock_output(void) { pthread_mutex_lock(&tranforcpp_output_mutex); }
-void tranforcpp_unlock_output(void) { pthread_mutex_unlock(&tranforcpp_output_mutex); }
+void tranforlanguage_lock_output(void) { pthread_mutex_lock(&tranforlanguage_output_mutex); }
+void tranforlanguage_unlock_output(void) { pthread_mutex_unlock(&tranforlanguage_output_mutex); }
 
-char *tranforcpp_strdup(const char *value) {
+char *tranforlanguage_strdup(const char *value) {
     size_t n = strlen(value ? value : "");
     char *copy = (char *)malloc(n + 1);
     if (!copy) abort();
@@ -24,7 +24,7 @@ char *tranforcpp_strdup(const char *value) {
     return copy;
 }
 
-void tranforcpp_write_json_string(const char *s) {
+void tranforlanguage_write_json_string(const char *s) {
     const unsigned char *p = (const unsigned char *)(s ? s : "");
     putchar('"');
     for (; *p; ++p) {
@@ -109,15 +109,15 @@ static int skip_value(cursor *c) {
     while (*c->p && *c->p != ',' && *c->p != '}' && *c->p != ']') c->p++;
     return 1;
 }
-static void event_free(tranforcpp_event *e) {
+static void event_free(tranforlanguage_event *e) {
     int i;
     if (!e) return;
     free(e->event); free(e->id); free(e->from); free(e->method); free(e->topic); free(e->result); free(e->error);
     for (i = 0; i < e->argc; i++) free(e->args[i]);
     free(e->args); free(e);
 }
-static tranforcpp_event *event_parse(const char *line) {
-    cursor c; tranforcpp_event *e = (tranforcpp_event *)calloc(1, sizeof(tranforcpp_event));
+static tranforlanguage_event *event_parse(const char *line) {
+    cursor c; tranforlanguage_event *e = (tranforlanguage_event *)calloc(1, sizeof(tranforlanguage_event));
     if (!e) abort();
     c.p = line; ws(&c);
     if (*c.p != '{') goto bad;
@@ -155,14 +155,14 @@ done:
     if (!e->event) goto bad;
     return e;
 bad:
-    fprintf(stderr, "tranforcpp: ignored invalid protocol line\n");
+    fprintf(stderr, "tranforlanguage: ignored invalid protocol line\n");
     event_free(e);
     return NULL;
 }
 
 /* ---- input pump ---- */
-typedef struct node { tranforcpp_event *event; struct node *next; } node;
-typedef struct method_entry { char *name; tranforcpp_method_fn fn; void *user; struct method_entry *next; } method_entry;
+typedef struct node { tranforlanguage_event *event; struct node *next; } node;
+typedef struct method_entry { char *name; tranforlanguage_method_fn fn; void *user; struct method_entry *next; } method_entry;
 static node *backlog_head, *backlog_tail, *replies;
 static method_entry *methods;
 static unsigned long next_call_id;
@@ -179,15 +179,15 @@ static char *read_line(void) {
     line[n] = '\0';
     return line;
 }
-static tranforcpp_event *read_event(void) {
+static tranforlanguage_event *read_event(void) {
     for (;;) {
-        char *line = read_line(); tranforcpp_event *e;
+        char *line = read_line(); tranforlanguage_event *e;
         if (!line) return NULL;
         e = event_parse(line); free(line);
         if (e) return e;
     }
 }
-static void push(node **head, node **tail, tranforcpp_event *e) {
+static void push(node **head, node **tail, tranforlanguage_event *e) {
     node *n = (node *)malloc(sizeof(node));
     if (!n) abort();
     n->event = e; n->next = NULL;
@@ -197,77 +197,77 @@ static void push(node **head, node **tail, tranforcpp_event *e) {
 static void write_args(int argc, const char *const *args) {
     int i;
     fputs(",\"args\":[", stdout);
-    for (i = 0; i < argc; i++) { if (i) putchar(','); tranforcpp_write_json_string(args[i]); }
+    for (i = 0; i < argc; i++) { if (i) putchar(','); tranforlanguage_write_json_string(args[i]); }
     putchar(']');
 }
 static void send_reply(const char *id, int ok, const char *text) {
-    tranforcpp_lock_output();
-    fputs("{\"action\":\"reply\",\"id\":", stdout); tranforcpp_write_json_string(id);
-    fputs(ok ? ",\"result\":" : ",\"error\":", stdout); tranforcpp_write_json_string(text);
+    tranforlanguage_lock_output();
+    fputs("{\"action\":\"reply\",\"id\":", stdout); tranforlanguage_write_json_string(id);
+    fputs(ok ? ",\"result\":" : ",\"error\":", stdout); tranforlanguage_write_json_string(text);
     fputs("}\n", stdout); fflush(stdout);
-    tranforcpp_unlock_output();
+    tranforlanguage_unlock_output();
 }
-static void serve(tranforcpp_event *e) {
+static void serve(tranforlanguage_event *e) {
     method_entry *m = methods; char *result = NULL; int ok;
     while (m && strcmp(m->name, e->method ? e->method : "")) m = m->next;
-    if (!m) { ok = 0; result = tranforcpp_strdup("unknown method"); }
+    if (!m) { ok = 0; result = tranforlanguage_strdup("unknown method"); }
     else ok = m->fn(e->argc, e->args, &result, m->user);
     if (e->id) send_reply(e->id, ok, result ? result : "");
     free(result);
 }
 
-void tranforcpp_handle(const char *method, tranforcpp_method_fn fn, void *user) {
+void tranforlanguage_handle(const char *method, tranforlanguage_method_fn fn, void *user) {
     method_entry *m = (method_entry *)malloc(sizeof(method_entry));
     if (!m) abort();
-    m->name = tranforcpp_strdup(method); m->fn = fn; m->user = user; m->next = methods; methods = m;
+    m->name = tranforlanguage_strdup(method); m->fn = fn; m->user = user; m->next = methods; methods = m;
 }
 static void send_call(const char *id, const char *target, const char *method, int argc, const char *const *args) {
-    tranforcpp_lock_output();
-    fputs("{\"action\":\"call\",\"target\":", stdout); tranforcpp_write_json_string(target);
-    fputs(",\"method\":", stdout); tranforcpp_write_json_string(method);
-    if (id) { fputs(",\"id\":", stdout); tranforcpp_write_json_string(id); }
+    tranforlanguage_lock_output();
+    fputs("{\"action\":\"call\",\"target\":", stdout); tranforlanguage_write_json_string(target);
+    fputs(",\"method\":", stdout); tranforlanguage_write_json_string(method);
+    if (id) { fputs(",\"id\":", stdout); tranforlanguage_write_json_string(id); }
     write_args(argc, args);
     fputs("}\n", stdout); fflush(stdout);
-    tranforcpp_unlock_output();
+    tranforlanguage_unlock_output();
 }
-void tranforcpp_notify(const char *target, const char *method, int argc, const char *const *args) {
+void tranforlanguage_notify(const char *target, const char *method, int argc, const char *const *args) {
     send_call(NULL, target, method, argc, args);
 }
-void tranforcpp_publish(const char *topic, int argc, const char *const *args) {
-    tranforcpp_lock_output();
-    fputs("{\"action\":\"publish\",\"topic\":", stdout); tranforcpp_write_json_string(topic);
+void tranforlanguage_publish(const char *topic, int argc, const char *const *args) {
+    tranforlanguage_lock_output();
+    fputs("{\"action\":\"publish\",\"topic\":", stdout); tranforlanguage_write_json_string(topic);
     write_args(argc, args);
     fputs("}\n", stdout); fflush(stdout);
-    tranforcpp_unlock_output();
+    tranforlanguage_unlock_output();
 }
-int tranforcpp_call(const char *target, const char *method, int argc, const char *const *args, char **out) {
+int tranforlanguage_call(const char *target, const char *method, int argc, const char *const *args, char **out) {
     char id[32];
     snprintf(id, sizeof(id), "%lu", ++next_call_id);
     send_call(id, target, method, argc, args);
     for (;;) {
-        node **link = &replies; tranforcpp_event *e;
+        node **link = &replies; tranforlanguage_event *e;
         while (*link && strcmp((*link)->event->id ? (*link)->event->id : "", id)) link = &(*link)->next;
         if (*link) {
             node *found = *link; int ok = found->event->ok;
             *link = found->next; e = found->event; free(found);
-            if (out) *out = tranforcpp_strdup(ok ? (e->result ? e->result : "") : (e->error ? e->error : "call failed"));
+            if (out) *out = tranforlanguage_strdup(ok ? (e->result ? e->result : "") : (e->error ? e->error : "call failed"));
             event_free(e);
             return ok;
         }
         e = read_event();
-        if (!e) { if (out) *out = tranforcpp_strdup("input closed"); return 0; }
+        if (!e) { if (out) *out = tranforlanguage_strdup("input closed"); return 0; }
         if (!strcmp(e->event, "reply")) push(&replies, NULL, e);
         else if (!strcmp(e->event, "call")) { serve(e); event_free(e); }
         else {
             int shutdown = !strcmp(e->event, "shutdown");
             push(&backlog_head, &backlog_tail, e);
-            if (shutdown) { if (out) *out = tranforcpp_strdup("server is shutting down"); return 0; }
+            if (shutdown) { if (out) *out = tranforlanguage_strdup("server is shutting down"); return 0; }
         }
     }
 }
-int tranforcpp_run(tranforcpp_event_fn handler, void *user) {
+int tranforlanguage_run(tranforlanguage_event_fn handler, void *user) {
     for (;;) {
-        tranforcpp_event *e; int shutdown;
+        tranforlanguage_event *e; int shutdown;
         if (backlog_head) {
             node *n = backlog_head; backlog_head = n->next; if (!backlog_head) backlog_tail = NULL;
             e = n->event; free(n);

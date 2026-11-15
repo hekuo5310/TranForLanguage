@@ -1,19 +1,19 @@
-require 'tranforcpp'
+require 'tranforlanguage'
 
-me = Tranfor::PROGRAM_ID
-Tranfor.handle('echo') { |value = ''| "#{me}:#{value}" }
-Tranfor.handle('bounce') { |target, value| Tranfor.call(target, 'echo', value) }
-Tranfor.on('Ping') { |source, target| Tranfor.broadcast("#{me}->#{Tranfor.call(target, 'echo', me)}") if source == me }
-Tranfor.on('Nested') { |source, via| Tranfor.broadcast("nested #{me}=#{Tranfor.call(via, 'bounce', me, me)}") if source == me }
-Tranfor.on('Missing') do |source|
+me = TranForLanguage::PROGRAM_ID
+TranForLanguage.handle('echo') { |value = ''| "#{me}:#{value}" }
+TranForLanguage.handle('bounce') { |target, value| TranForLanguage.call(target, 'echo', value) }
+TranForLanguage.on('Ping') { |source, target| TranForLanguage.broadcast("#{me}->#{TranForLanguage.call(target, 'echo', me)}") if source == me }
+TranForLanguage.on('Nested') { |source, via| TranForLanguage.broadcast("nested #{me}=#{TranForLanguage.call(via, 'bounce', me, me)}") if source == me }
+TranForLanguage.on('Missing') do |source|
   next unless source == me
 
   begin
-    Tranfor.call('nobody', 'echo')
-  rescue Tranfor::CallError => e
-    Tranfor.broadcast("missing #{me}:#{e.message}")
+    TranForLanguage.call('nobody', 'echo')
+  rescue TranForLanguage::CallError => e
+    TranForLanguage.broadcast("missing #{me}:#{e.message}")
   end
 end
-Tranfor.on('Announce') { |source| Tranfor.publish('greet', 'hi') if source == me }
-Tranfor.subscribe('greet') { |sender, text| Tranfor.broadcast("greet #{me} from #{sender}: #{text}") }
-Tranfor.run
+TranForLanguage.on('Announce') { |source| TranForLanguage.publish('greet', 'hi') if source == me }
+TranForLanguage.subscribe('greet') { |sender, text| TranForLanguage.broadcast("greet #{me} from #{sender}: #{text}") }
+TranForLanguage.run

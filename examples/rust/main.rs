@@ -1,4 +1,4 @@
-use tranforcpp::{run, send_message};
+use tranforlanguage::{run, send_message};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     run(|event| {

@@ -1,7 +1,7 @@
-require 'tranforcpp'
+require 'tranforlanguage'
 
-Tranfor.on('PlayerJoin') do |player|
-  Tranfor.send_message(player, 'Welcome from Ruby!')
+TranForLanguage.on('PlayerJoin') do |player|
+  TranForLanguage.send_message(player, 'Welcome from Ruby!')
 end
 
-Tranfor.run
+TranForLanguage.run

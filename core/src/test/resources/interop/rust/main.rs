@@ -1,4 +1,4 @@
-use tranforcpp::{broadcast, call, handle, program_id, publish, run};
+use tranforlanguage::{broadcast, call, handle, program_id, publish, run};
 
 fn main() {
     let me = program_id();

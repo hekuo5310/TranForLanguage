@@ -1,4 +1,4 @@
-const t = require('tranforcpp');
+const t = require('tranforlanguage');
 const me = t.programId;
 t.handle('echo', (value = '') => me + ':' + value);
 t.handle('bounce', (target, value) => t.call(target, 'echo', value));
