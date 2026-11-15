@@ -17,7 +17,7 @@ public final class PythonLanguageProvider implements LanguageProvider {
         File requirements = new File(directory, "requirements.txt");
         if (requirements.isFile()) {
             File venv = new File(directory, ".tranforlanguage/python-venv");
-            String fingerprint = ProgramFiles.fingerprint(requirements, python);
+            String fingerprint = ProgramFiles.pythonFingerprint(requirements, python);
             File stamp = new File(venv, ".tfl-requirements");
             if (!ProgramFiles.matches(stamp, fingerprint)) {
                 // Stable location matters: venv scripts contain absolute interpreter paths.
