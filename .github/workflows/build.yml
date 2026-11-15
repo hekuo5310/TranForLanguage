@@ -34,6 +34,11 @@ jobs:
           python3 --version
           rustc --version
           cargo --version
+          node --version
+          go version
+          ruby --version
+          php --version
+          javac -version
       - name: Compile against exact Spigot API
         run: mvn -U -B -ntp verify -Dspigot.version=${{ matrix.api }}-R0.1-SNAPSHOT -DskipTests=${{ matrix.api != '1.8' }}
       - name: Verify plugin metadata and Java 8 artifact

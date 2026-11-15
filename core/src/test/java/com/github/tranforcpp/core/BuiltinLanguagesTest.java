@@ -62,6 +62,37 @@ public class BuiltinLanguagesTest {
         assertFalse(new File(platform.dir, "Cargo.toml").exists());
         assertTrue(new File(platform.dir, ".tranforcpp/rust-project/Cargo.lock").isFile());
     }
+    private void roundTrip(String file, String source, int seconds) throws Exception {
+        write(file, source);
+        try { runtime.reload().get(seconds, TimeUnit.SECONDS); }
+        catch (ExecutionException failure) {
+            File log = new File(platform.dir, "compile.log");
+            throw new AssertionError(log.isFile() ? new String(Files.readAllBytes(log.toPath()), StandardCharsets.UTF_8) : "no compile.log", failure);
+        }
+        runtime.sendEvent("PlayerJoin", TEXT);
+        receive(TEXT);
+    }
+    @Test public void javascriptRequiresBundledSdkAndReceivesUnicodeEvent() throws Exception {
+        roundTrip("main.js", "const t=require('tranforcpp');t.on('PlayerJoin',p=>t.broadcast(p));t.run();\n", 10);
+    }
+    @Test public void goBuildsWithBundledModuleAndReceivesUnicodeEvent() throws Exception {
+        roundTrip("main.go", "package main\nimport t \"tranforcpp\"\nfunc main(){t.On(\"PlayerJoin\",func(a []string){t.Broadcast(a[0])});t.Run()}\n", 300);
+        assertFalse(new File(platform.dir, "go.mod").exists());
+    }
+    @Test public void rubyRequiresBundledSdkAndReceivesUnicodeEvent() throws Exception {
+        roundTrip("main.rb", "require 'tranforcpp'\nTranfor.on('PlayerJoin') { |p| Tranfor.broadcast(p) }\nTranfor.run\n", 10);
+    }
+    @Test public void phpPreloadsSdkAndReceivesUnicodeEvent() throws Exception {
+        roundTrip("main.php", "<?php\nTranfor::on('PlayerJoin', fn($p) => Tranfor::broadcast($p));\nTranfor::run();\n", 10);
+    }
+    @Test public void javaCompilesWithBundledSdkAndReceivesUnicodeEvent() throws Exception {
+        roundTrip("Main.java", "import tranforcpp.Tranfor;\npublic class Main{public static void main(String[] a){Tranfor.on(\"PlayerJoin\",p->Tranfor.broadcast(p[0]));Tranfor.run();}}\n", 120);
+    }
+    @Test public void standaloneRuntimeAnswersCallsWithAnError() throws Exception {
+        write("main.py", "from tranforcpp import call,broadcast,CallError\ntry:\n call('x','y')\nexcept CallError as e:\n broadcast(str(e))\n");
+        runtime.reload().get(10, TimeUnit.SECONDS);
+        receive("inter-program calls require a program manager");
+    }
     @Test public void explicitLanguageResolvesMixedSourcesAndNestedEntrypoint() throws Exception {
         write("unused.cpp", "this is not C++");
         write("main.py", "raise RuntimeError('wrong entrypoint')");

@@ -6,10 +6,10 @@
 
 - Spigot 默认继续使用 `plugins/C++ Plugins/`，兼容现有插件。
 - Fabric / Forge / NeoForge 使用 `config/tranforcpp/programs/`。
-- 没有显式 `language` 时识别目录中的 `.cpp`、`.c`、`main.py`、`main.rs`；同时出现多种语言会要求在 `program.json` 指定语言。空目录不启动进程。
+- 没有显式 `language` 时识别目录中的 `.cpp`、`.c`、`main.py`、`main.rs`、`main.js`、`main.go`、`main.rb`、`main.php`、`Main.java`；同时出现多种语言会要求在 `program.json` 指定语言。空目录不启动进程。
 - 每个直接子目录对应一个独立插件进程，子目录可使用不同语言。根目录有旧程序时以 `@root` 同时加载。多个 `.cpp` 在各自目录内编译成一个程序，不能在同一插件目录中并行选择多个语言。
 
-内置适配器为 `cpp`、`c`、`python`、`rust`。Python / Rust 支持 `entrypoint`（默认 `main.py` / `main.rs`），无需自己构造解释器或编译命令；SDK 用法见 [README](../README.md)。C/C++ 的 API 在编译时自动注入，原有 `tranforcpp_api.h` include 继续兼容。
+内置适配器为 `cpp`、`c`、`python`、`rust`、`javascript`、`go`、`ruby`、`php`、`java`。Python / Rust / JavaScript / Ruby / PHP 支持 `entrypoint`（默认 `main.py` / `main.rs` / `main.js` / `main.rb` / `main.php`），Go / Java 编译目录下全部顶层源文件（Java 可用 `mainClass` 指定主类），无需自己构造解释器或编译命令；SDK 用法见 [README](../README.md)。C/C++ 的 API 在编译时自动注入，原有 `tranforcpp_api.h` include 继续兼容。
 
 通用 `process` 适配器仍可运行 Node.js、Java、自定义 Cargo 工程的预编译产物等：
 
@@ -23,7 +23,7 @@
 
 `command` 必须是字符串数组，直接传给 `ProcessBuilder`，不拼接 shell 命令。可执行文件需要已安装或提供绝对路径。程序必须实现下述协议；普通命令行程序不会自动成为 Minecraft 插件。标准输出专用于协议，诊断写到标准错误，每条消息后刷新输出。
 
-C 适配器使用 `gcc -std=c11 -pthread`，C++ 适配器使用 `g++ -std=c++17 -pthread`，均由 `-include` 注入内置 SDK。Python SDK 的 `on(event)` / `run()` 和 Rust SDK 的 `run(handler)` 解析事件并在处理 `shutdown` 后退出；C/C++ 仍自行读取与分派事件。Rust 通过自动维护的 Cargo 工程引入内置 `tranforcpp` crate，首次下载 serde 依赖，保留 Cargo.lock 和 target 缓存；不覆盖用户源码或用户 Cargo.toml。可通过 JVM 参数 `-Dtranforcpp.compiler=/path/to/clang++` 切换兼容编译器；不再错误地声称 GCC 参数可用于 MSVC。编译日志在程序目录 `compile.log`。
+C 适配器使用 `gcc -std=c11 -pthread`，C++ 适配器使用 `g++ -std=c++17 -pthread`，均由 `-include` 注入内置 SDK。各 SDK 的 `run` 解析事件、自动应答调用并在处理 `shutdown` 后退出；C/C++ 可继续自行读取事件，或使用 `tranforcpp_run` / `tranforcpp::run` 以支持程序间调用。Rust 通过自动维护的 Cargo 工程引入内置 `tranforcpp` crate，首次下载 serde 依赖，保留 Cargo.lock 和 target 缓存；不覆盖用户源码或用户 Cargo.toml。可通过 JVM 参数 `-Dtranforcpp.compiler=/path/to/clang++` 切换兼容编译器；不再错误地声称 GCC 参数可用于 MSVC。编译日志在程序目录 `compile.log`。
 
 ## 服务端 → 程序
 
@@ -56,12 +56,45 @@ C 适配器使用 `gcc -std=c11 -pthread`，C++ 适配器使用 `g++ -std=c++17 
 
 Spigot 使用 MiniMessage 转 Bukkit 传统颜色字符串；模组端当前将消息作为纯文本发送，不能宣称两端富文本格式完全一致。
 
+## 程序之间的调用
+
+以下消息由核心在 IO 线程路由，不进入游戏线程。`target` 是插件 ID（子目录名或 `@root`）。所有参数与结果均为字符串；非字符串参数会转为其 JSON 文本。
+
+程序 → 服务端：
+
+```json
+{"action":"call","target":"economy","method":"balance","args":["Alex"],"id":"7"}
+{"action":"call","target":"economy","method":"refresh","args":[]}
+{"action":"reply","id":"41","result":"100"}
+{"action":"reply","id":"41","error":"not enough coins"}
+{"action":"publish","topic":"purchase","args":["Alex","sword"]}
+```
+
+服务端 → 程序（均保留 `event` 与字符串数组 `args`，旧 SDK 可忽略新字段）：
+
+```json
+{"event":"call","args":["Alex"],"from":"shop","method":"balance","id":"41"}
+{"event":"reply","args":[],"id":"7","from":"economy","ok":true,"result":"100"}
+{"event":"reply","args":[],"id":"7","from":"economy","ok":false,"error":"program is not running: economy"}
+{"event":"message","args":["Alex","sword"],"from":"shop","topic":"purchase"}
+```
+
+- 带 `id` 的 `call` 一定会收到且只收到一个 `reply`：成功、目标返回错误、目标未运行或队列已满、目标回复前退出 / 停止 / 重载、超时（`-Dtranforcpp.call-timeout-ms`，默认 30000）或管理器关闭。调用方的 `id` 原样带回，可以是字符串或数字。
+- 不带 `id` 的 `call` 是单向通知，没有回复。
+- 核心把转发给目标的 `id` 重写为内部编号，只接受该调用目标的当前进程会话的回复；其他程序伪造或迟到的回复被丢弃。
+- `publish` 投递给除发送者外、`events` 未过滤 `message` 的所有运行中插件。调用和回复不受 `events` 过滤。
+- 调用和消息与游戏事件共用每进程 2000 条的有界队列。同时等待的调用最多 10000 个。
+- 服务端为每个进程设置环境变量 `TRANFORCPP_PROGRAM_ID`。
+- 单独使用 `ProgramRuntime`（不经 `ProgramManager`）时，`call` 会立即收到错误回复。
+
+SDK 在等待回复时继续读取输入：其他调用被重入应答（A → B → A 不会死锁），游戏事件暂存，待当前处理器返回后按序处理。
+
 ## 添加语言适配器
 
 实现 `com.github.tranforcpp.core.language.LanguageProvider`：
 
 - `id()`：唯一语言标识。
-- `prepare(directory, configuration, logger)`：进行需要的编译或准备，返回不可变的 `LaunchCommand`（工作目录与 argv）；没有程序时返回 `null`。
+- `prepare(directory, configuration, logger)`：进行需要的编译或准备，返回不可变的 `LaunchCommand`（工作目录、argv 与可选的附加环境变量）；没有程序时返回 `null`。
 - 不在此处访问游戏 API，也不实现重复的事件队列或进程协议。
 
 可以在启动前调用 `runtime.languages().register(provider)`，或通过同一加载器可见的 Java SPI 文件 `META-INF/services/com.github.tranforcpp.core.language.LanguageProvider` 打包适配器。服务加载器使用核心类加载器；外部放置 JAR 不会自动安装，当前没有动态扩展目录扫描功能。未知语言和协议版本会明确报错。

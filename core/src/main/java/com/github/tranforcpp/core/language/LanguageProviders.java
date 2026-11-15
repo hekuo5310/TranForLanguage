@@ -14,6 +14,11 @@ public final class LanguageProviders {
         register(new CLanguageProvider());
         register(new PythonLanguageProvider());
         register(new RustLanguageProvider());
+        register(new JavaScriptLanguageProvider());
+        register(new GoLanguageProvider());
+        register(new RubyLanguageProvider());
+        register(new PhpLanguageProvider());
+        register(new JavaLanguageProvider());
         register(new ProcessLanguageProvider());
         for (LanguageProvider provider : ServiceLoader.load(LanguageProvider.class, LanguageProvider.class.getClassLoader())) register(provider);
     }
@@ -39,13 +44,25 @@ public final class LanguageProviders {
         Set<String> found = new LinkedHashSet<>();
         File[] files = directory.listFiles();
         if (files != null) for (File file : files) {
-            if (!file.isFile()) continue;
-            if (file.getName().endsWith(".cpp")) found.add("cpp");
-            if (file.getName().endsWith(".c")) found.add("c");
-            if (file.getName().equals("main.py")) found.add("python");
-            if (file.getName().equals("main.rs")) found.add("rust");
+            String language = file.isFile() ? detectLanguage(file.getName()) : null;
+            if (language != null) found.add(language);
         }
         if (found.size() > 1) throw new IllegalArgumentException("Multiple program languages found; select language in program.json: " + found);
         return found.isEmpty() ? "cpp" : found.iterator().next();
+    }
+    /** The built-in language a file selects when program.json names none, or null. */
+    public static String detectLanguage(String name) {
+        if (name.endsWith(".cpp")) return "cpp";
+        if (name.endsWith(".c")) return "c";
+        switch (name) {
+            case "main.py": return "python";
+            case "main.rs": return "rust";
+            case "main.js": return "javascript";
+            case "main.go": return "go";
+            case "main.rb": return "ruby";
+            case "main.php": return "php";
+            case "Main.java": return "java";
+            default: return null;
+        }
     }
 }

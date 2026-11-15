@@ -18,12 +18,14 @@ assert len(files) == 1, f'Expected one distributable, got {files}'
 with zipfile.ZipFile(files[0]) as jar:
     names = set(jar.namelist())
     assert 'tranforcpp_api.h' in names, 'Missing C++ SDK resource'
-    for resource in ['c/tranforcpp.h', 'c/runtime.c', 'python/bootstrap.py', 'python/tranforcpp.py',
-                     'rust/Cargo.toml', 'rust/src/lib.rs']:
+    for resource in ['c/tranforcpp.h', 'c/tranforcpp_rpc.h', 'c/rpc.c', 'python/bootstrap.py', 'python/tranforcpp.py',
+                     'rust/Cargo.toml', 'rust/src/lib.rs', 'javascript/tranforcpp.js', 'go/go.mod', 'go/tranforcpp.go',
+                     'ruby/tranforcpp.rb', 'php/tranforcpp.php', 'java/tranforcpp/Tranfor.java']:
         assert 'sdk/' + resource in names, 'Missing bundled SDK: ' + resource
     assert 'LICENSE' in names, 'Missing project license'
     assert 'com/github/tranforcpp/core/ProgramRuntime.class' in names
     assert 'com/github/tranforcpp/core/ProgramManager.class' in names
+    assert 'com/github/tranforcpp/core/ProgramBus.class' in names
     assert not any(name.endswith('/MemoryOptimizer.class') or name.endswith('/SmartThreadOptimizer.class') for name in names)
     assert 'com/github/tranforcpp/core/language/LanguageProvider.class' in names
     majors = {struct.unpack('>H', jar.read(name)[6:8])[0] for name in names

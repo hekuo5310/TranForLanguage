@@ -42,12 +42,16 @@ public class CppCompiler {
         String compiler = System.getProperty(c ? "tranforcpp.c.compiler" : "tranforcpp.compiler", c ? "gcc" : "g++");
         File header = c ? ProgramFiles.sdk(dir, "c/tranforcpp.h")
             : ProgramFiles.resource(dir, "/tranforcpp_api.h", "cpp/tranforcpp_api.h");
+        File rpcHeader = ProgramFiles.sdk(dir, "c/tranforcpp_rpc.h");
+        File rpc = ProgramFiles.sdk(dir, "c/rpc.c");
         File executable = new File(dir, System.getProperty("os.name").toLowerCase(Locale.ROOT).contains("win")
             ? "tranforcpp_plugin.exe" : "tranforcpp_plugin");
         List<String> args = new ArrayList<>(Arrays.asList(compiler, c ? "-std=c11" : "-std=c++17", "-pthread",
-            "-I", header.getParent(), "-include", header.getAbsolutePath(), "-o", executable.getAbsolutePath()));
+            "-I", header.getParent(), "-I", rpcHeader.getParent(), "-include", header.getAbsolutePath(), "-o", executable.getAbsolutePath()));
         for (File source : sources) args.add(source.getAbsolutePath());
-        if (c) args.add(ProgramFiles.sdk(dir, "c/runtime.c").getAbsolutePath());
+        // The shared event loop / call runtime; compiled as C++ by the C++ toolchain.
+        if (!c) args.addAll(Arrays.asList("-x", "c++"));
+        args.add(rpc.getAbsolutePath());
         ProgramFiles.build(dir, args, 120);
         if (!executable.isFile()) throw new IOException("Compiler did not produce the program; see compile.log");
         logger.info((c ? "C" : "C++") + " compilation complete: " + sources.length + " source(s)");

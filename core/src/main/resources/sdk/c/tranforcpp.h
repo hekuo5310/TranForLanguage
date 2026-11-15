@@ -3,25 +3,17 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <pthread.h>
+#include "tranforcpp_rpc.h"
 
 extern pthread_mutex_t tranforcpp_output_mutex;
-static inline void tranforcpp_json_string(const char *s) {
-    const unsigned char *p = (const unsigned char *)(s ? s : "");
-    putchar('"');
-    for (; *p; ++p) {
-        if (*p == '"' || *p == '\\') { putchar('\\'); putchar(*p); }
-        else if (*p < 0x20) printf("\\u%04x", (unsigned int)*p);
-        else putchar(*p);
-    }
-    putchar('"');
-}
+static inline void tranforcpp_json_string(const char *s) { tranforcpp_write_json_string(s); }
 static inline void tranforcpp_emit(const char *action, const char *key, const char *value, const char *player) {
-    pthread_mutex_lock(&tranforcpp_output_mutex);
+    tranforcpp_lock_output();
     fputs("{\"action\":", stdout); tranforcpp_json_string(action);
     if (player) { fputs(",\"player\":", stdout); tranforcpp_json_string(player); }
     fputs(",", stdout); tranforcpp_json_string(key); putchar(':'); tranforcpp_json_string(value);
     fputs("}\n", stdout); fflush(stdout);
-    pthread_mutex_unlock(&tranforcpp_output_mutex);
+    tranforcpp_unlock_output();
 }
 static inline void broadcast(const char *message) { tranforcpp_emit("broadcast", "message", message, NULL); }
 static inline void sendMessage(const char *player, const char *message) { tranforcpp_emit("sendMessage", "message", message, player ? player : ""); }

@@ -7,6 +7,12 @@
 #include <thread>
 #include <atomic>
 #include <mutex>
+#include <functional>
+#include <map>
+#include <stdexcept>
+#include <cstdlib>
+#include <vector>
+#include "tranforcpp_rpc.h"
 
 extern "C" {
 
@@ -64,8 +70,11 @@ namespace tranforcpp {
     }
 
     inline void sendMessage(const std::string& action, const std::string& msg) {
-        std::lock_guard<std::mutex> lock(output_mutex);
+        (void)action;
+        // Shares the SDK output lock with calls and replies so lines never interleave.
+        tranforcpp_lock_output();
         std::cout << msg << std::endl;
+        tranforcpp_unlock_output();
     }
 }
 
@@ -94,6 +103,56 @@ inline void dispatchCommand(const char* command, bool sync) {
     std::ostringstream oss;
     oss << R"({"action":"executeCommand","command":")" << tranforcpp::escapeJson(command) << R"(","sync":)" << (sync ? "true" : "false") << R"(})";
     tranforcpp::sendMessage("dispatchCommand", oss.str());
+}
+
+namespace tranforcpp {
+    /** Thrown by call() when the target is missing, fails or times out. */
+    struct CallError : std::runtime_error { using std::runtime_error::runtime_error; };
+    using Args = std::vector<std::string>;
+    using Method = std::function<std::string(const Args&)>;
+    using EventHandler = std::function<void(const tranforcpp_event&)>;
+
+    inline std::vector<const char*> c_args(const Args& args) {
+        std::vector<const char*> out;
+        for (const std::string& arg : args) out.push_back(arg.c_str());
+        return out;
+    }
+    /** Calls method on another program and waits for its string result. */
+    inline std::string call(const std::string& target, const std::string& method, const Args& args = {}) {
+        std::vector<const char*> argv = c_args(args);
+        char* out = nullptr;
+        int ok = tranforcpp_call(target.c_str(), method.c_str(), (int)argv.size(), argv.data(), &out);
+        std::string text = out ? out : "";
+        std::free(out);
+        if (!ok) throw CallError(text);
+        return text;
+    }
+    inline void notify(const std::string& target, const std::string& method, const Args& args = {}) {
+        std::vector<const char*> argv = c_args(args);
+        tranforcpp_notify(target.c_str(), method.c_str(), (int)argv.size(), argv.data());
+    }
+    inline void publish(const std::string& topic, const Args& args = {}) {
+        std::vector<const char*> argv = c_args(args);
+        tranforcpp_publish(topic.c_str(), (int)argv.size(), argv.data());
+    }
+    /** Exposes a method; exceptions become error replies. Register before run(). */
+    inline void handle(const std::string& name, Method method) {
+        Method* stored = new Method(std::move(method)); // lives for the whole process
+        tranforcpp_handle(name.c_str(), [](int argc, char** argv, char** result, void* user) -> int {
+            try {
+                *result = tranforcpp_strdup((*static_cast<Method*>(user))(Args(argv, argv + argc)).c_str());
+                return 1;
+            } catch (const std::exception& e) { *result = tranforcpp_strdup(e.what()); }
+            catch (...) { *result = tranforcpp_strdup("unknown C++ exception"); }
+            return 0;
+        }, stored);
+    }
+    /** Reads events until shutdown, answering calls; the handler also sees "message" and "shutdown". */
+    inline int run(EventHandler handler) {
+        return tranforcpp_run([](const tranforcpp_event* event, void* user) {
+            (*static_cast<EventHandler*>(user))(*event);
+        }, &handler);
+    }
 }
 
 #endif

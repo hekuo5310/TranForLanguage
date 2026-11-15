@@ -2,7 +2,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>com.github.tranforcpp</groupId><artifactId>tranforlanguage-spigot</artifactId><version>2.1.0</version>
   <name>TranForLanguage</name>
-  <description>Run C, C++, Python and Rust programs on Minecraft servers.</description>
+  <description>Run C, C++, Python, Rust, JavaScript, Go, Ruby, PHP and Java programs on Minecraft servers and let them call each other.</description>
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <maven.compiler.release>8</maven.compiler.release>
@@ -17,6 +17,7 @@
     <dependency><groupId>junit</groupId><artifactId>junit</artifactId><version>4.13.2</version><scope>test</scope></dependency>
   </dependencies>
   <build>
+    <testResources><testResource><directory>core/src/test/resources</directory></testResource></testResources>
     <resources><resource><directory>src/main/resources</directory><filtering>true</filtering></resource><resource><directory>core/src/main/resources</directory></resource><resource><directory>.</directory><includes><include>tranforcpp_api.h</include><include>LICENSE</include></includes></resource></resources>
     <plugins>
       <plugin><groupId>org.codehaus.mojo</groupId><artifactId>build-helper-maven-plugin</artifactId><version>3.6.1</version><executions>

@@ -17,7 +17,25 @@ public final class ProgramManager implements AutoCloseable {
     private volatile Map<String, Entry> programs = Collections.emptyMap();
     private volatile boolean closed;
     private final java.util.Set<CompletableFuture<Void>> pending = java.util.Collections.newSetFromMap(new ConcurrentHashMap<CompletableFuture<Void>, Boolean>());
-    public ProgramManager(Platform platform) { this.platform = platform; }
+    private final ProgramBus bus;
+    public ProgramManager(Platform platform) {
+        this.platform = platform;
+        bus = new ProgramBus(new ProgramBus.Directory() {
+            public ProgramBus.Endpoint find(String id) {
+                Entry entry = programs.get(id); ProgramRuntime runtime = entry == null ? null : entry.runtime;
+                return runtime == null ? null : runtime.endpoint();
+            }
+            public Collection<ProgramBus.Endpoint> subscribers(ProgramBus.Endpoint source) {
+                List<ProgramBus.Endpoint> result = new ArrayList<>();
+                for (Entry entry : programs.values()) {
+                    ProgramRuntime runtime = entry.runtime; ProgramBus.Endpoint endpoint = runtime == null ? null : runtime.endpoint();
+                    Set<String> events = entry.events;
+                    if (endpoint != null && endpoint != source && (events == null || events.contains("message"))) result.add(endpoint);
+                }
+                return result;
+            }
+        }, platform.logger());
+    }
     public synchronized CompletableFuture<Void> reload() { return submit(() -> {
         Map<String, File> discovered = discover();
         Map<String, Entry> next = new LinkedHashMap<>();
@@ -107,14 +125,14 @@ public final class ProgramManager implements AutoCloseable {
     private boolean hasProgram(File dir) {
         File[] files = dir.listFiles();
         if (files != null) for (File f : files) if (f.isFile() && (f.getName().equals("program.json")
-            || f.getName().equals("main.py") || f.getName().equals("main.rs")
-            || f.getName().endsWith(".c") || f.getName().endsWith(".cpp"))) return true;
+            || com.github.tranforcpp.core.language.LanguageProviders.detectLanguage(f.getName()) != null)) return true;
         return false;
     }
     @Override public void close() {
         synchronized (this) { closed = true; control.shutdownNow(); }
         for (CompletableFuture<Void> future : pending) future.cancel(false);
         for (Entry e : programs.values()) e.stop();
+        bus.close();
     }
     private interface CheckedAction { void run() throws Exception; }
     public static final class Status {
@@ -170,7 +188,7 @@ public final class ProgramManager implements AutoCloseable {
                     public void broadcast(String message) { platform.broadcast(message); }
                     public void sendMessage(String player, String message) { platform.sendMessage(player, message); }
                     public void dispatchCommand(String command) { platform.dispatchCommand(command); }
-                });
+                }, bus, id);
                 synchronized (this) {
                     if (closed) { next.close(); return; }
                     runtime = next;

@@ -20,7 +20,11 @@ public final class ProgramRuntime implements AutoCloseable {
     private volatile Session session;
     private volatile boolean closed;
     private final java.util.Set<CompletableFuture<Void>> pending = java.util.Collections.newSetFromMap(new ConcurrentHashMap<CompletableFuture<Void>, Boolean>());
-    public ProgramRuntime(Platform platform) { this.platform = platform; }
+    private final ProgramBus bus;
+    private final String id;
+    public ProgramRuntime(Platform platform) { this(platform, null, "@local"); }
+    /** A runtime whose {@code call} / {@code reply} / {@code publish} actions are routed by {@code bus}. */
+    public ProgramRuntime(Platform platform, ProgramBus bus, String id) { this.platform = platform; this.bus = bus; this.id = id; }
     private static Thread daemon(Runnable r, String name) {
         Thread t = new Thread(r, name); t.setDaemon(true); return t;
     }
@@ -33,7 +37,10 @@ public final class ProgramRuntime implements AutoCloseable {
                 LaunchCommand command = languages.prepare(platform.directory(), platform.logger());
                 synchronized (this) {
                     if (command == null || closed || generation.get() != expected) return;
-                    Process process = new ProcessBuilder(command.arguments()).directory(command.directory()).start();
+                    ProcessBuilder builder = new ProcessBuilder(command.arguments()).directory(command.directory());
+                    builder.environment().putAll(command.environment());
+                    builder.environment().put("TRANFORCPP_PROGRAM_ID", id);
+                    Process process = builder.start();
                     Session next = new Session(process, expected);
                     session = next;
                     next.start();
@@ -44,6 +51,8 @@ public final class ProgramRuntime implements AutoCloseable {
         return future;
     }
     public boolean isRunning() { Session s = session; return s != null && s.process.isAlive(); }
+    /** The live session as a bus endpoint, or null when not running. */
+    ProgramBus.Endpoint endpoint() { Session s = session; return s != null && s.process.isAlive() ? s.endpoint : null; }
     public void sendEvent(String name, Object... args) {
         if (isRunning()) sendLine(eventLine(name, args));
     }
@@ -66,6 +75,18 @@ public final class ProgramRuntime implements AutoCloseable {
         try {
             JsonObject message = gson.fromJson(line, JsonObject.class);
             String action = message.get("action").getAsString();
+            if (action.equals("call") || action.equals("reply") || action.equals("publish")) {
+                // Inter-program traffic stays on IO threads; it never needs the game thread.
+                if (closed || session != source) return;
+                if (bus != null) bus.receive(source.endpoint, message);
+                else if (action.equals("call") && message.has("id")) {
+                    JsonObject reply = new JsonObject(); reply.addProperty("event", "reply"); reply.add("args", new JsonArray());
+                    reply.add("id", message.get("id")); reply.addProperty("ok", false);
+                    reply.addProperty("error", "inter-program calls require a program manager");
+                    source.endpoint.deliver(gson.toJson(reply));
+                }
+                return;
+            }
             platform.execute(() -> {
                 if (closed || session != source || generation.get() != source.generation) return;
                 try {
@@ -100,6 +121,13 @@ public final class ProgramRuntime implements AutoCloseable {
         final BufferedWriter writer;
         final Thread sender;
         volatile boolean stopped;
+        final ProgramBus.Endpoint endpoint = new ProgramBus.Endpoint() {
+            public String id() { return id; }
+            public boolean deliver(String line) {
+                return session == Session.this && !stopped && process.isAlive() && queue.offer(line);
+            }
+            @Override public String toString() { return id; }
+        };
         Session(Process process, long generation) {
             this.process = process; this.generation = generation;
             writer = new BufferedWriter(new OutputStreamWriter(process.getOutputStream(), StandardCharsets.UTF_8));
@@ -120,6 +148,7 @@ public final class ProgramRuntime implements AutoCloseable {
             daemon(() -> {
                 try {
                     int code = process.waitFor();
+                    if (bus != null) bus.ended(endpoint);
                     if (!stopped) platform.logger().warning("Program exited unexpectedly with code " + code
                         + "; use reload to restart (no automatic restart)");
                 } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
@@ -146,6 +175,7 @@ public final class ProgramRuntime implements AutoCloseable {
         void close() {
             reportDroppedEvents(true);
             stopped = true; queue.clear(); queue.offer(SHUTDOWN);
+            if (bus != null) bus.ended(endpoint);
             try {
                 if (!process.waitFor(1, TimeUnit.SECONDS)) process.destroy();
                 if (!process.waitFor(1, TimeUnit.SECONDS)) process.destroyForcibly();

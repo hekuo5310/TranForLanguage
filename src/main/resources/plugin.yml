@@ -3,7 +3,7 @@ version: '${project.version}'
 api-version: '1.13'
 main: com.github.tranforcpp.TranforCPlusPlus
 author: 'hekuo,Xiao-QDev'
-description: '在 Minecraft 服务端运行 C、C++、Python 和 Rust 程序'
+description: '在 Minecraft 服务端运行 C、C++、Python、Rust、JavaScript、Go、Ruby、PHP 和 Java 程序，并支持程序间互相调用'
 permissions:
   tranforlanguage.use:
     description: Allow using TranForLanguage commands

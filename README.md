@@ -1,6 +1,6 @@
 # TranForLanguage
 
-让 Minecraft 服务端通过统一进程协议运行 C、C++、Python 和 Rust 程序。
+让 Minecraft 服务端通过统一进程协议运行 C、C++、Python、Rust、JavaScript、Go、Ruby、PHP 和 Java 程序。不同语言的插件同时运行，并能[互相调用](#程序间互相调用)。
 
 ## 平台与构建
 
@@ -96,15 +96,84 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 需要 Rust 1.85+ 工具链及 Cargo，默认通过 `cargo build --release` 编译；可用 `-Dtranforcpp.cargo=/path/to/cargo` 指定 Cargo。自动生成的 Cargo 工程和锁文件位于 `.tranforcpp/rust-project/`，内置 SDK 位于 `.tranforcpp/sdk/rust/`。首次构建需要从 crates.io 下载 `serde` / `serde_json` 及其依赖，之后由 Cargo 缓存；不会自动安装 Rust。见 [Rust 示例](examples/rust)。
 
+### JavaScript (Node.js)
+
+放入 `main.js`（CommonJS），`require('tranforcpp')` 由服务端自动解析到内置 SDK：
+
+```js
+const { on, run, sendMessage } = require('tranforcpp');
+on('PlayerJoin', (player) => sendMessage(player, 'Welcome from JavaScript!'));
+run();
+```
+
+需要 Node.js 16+（默认 `node`，`-Dtranforcpp.node=/path/to/node`）。SDK 通过 `NODE_PATH` 注入，不写入 `node_modules`；`call()` 返回 Promise。见 [JavaScript 示例](examples/javascript)。
+
+### Go
+
+放入 `main.go`（`package main`），导入 `tranforcpp`：
+
+```go
+package main
+
+import t "tranforcpp"
+
+func main() {
+	t.On("PlayerJoin", func(args []string) { t.SendMessage(args[0], "Welcome from Go!") })
+	t.Run()
+}
+```
+
+需要 Go 1.18+（默认 `go`，`-Dtranforcpp.go=/path/to/go`）。目录下全部顶层 `.go` 文件复制到 `.tranforcpp/go-project/` 中自动生成的模块编译，`tranforcpp` 通过 `replace` 指向内置 SDK，不需要网络，也不会写用户的 `go.mod`。SDK 只依赖标准库，`Call` 可在任意 goroutine 中使用。见 [Go 示例](examples/go)。
+
+### Ruby
+
+放入 `main.rb`：
+
+```ruby
+require 'tranforcpp'
+Tranfor.on('PlayerJoin') { |player| Tranfor.send_message(player, 'Welcome from Ruby!') }
+Tranfor.run
+```
+
+需要 Ruby 3.0+（默认 `ruby`，`-Dtranforcpp.ruby=/path/to/ruby`），SDK 目录通过 `-I` 加入加载路径。见 [Ruby 示例](examples/ruby)。
+
+### PHP
+
+放入 `main.php`，`Tranfor` 类由 `auto_prepend_file` 预加载，无需 `require`：
+
+```php
+<?php
+Tranfor::on('PlayerJoin', fn($player) => Tranfor::sendMessage($player, 'Welcome from PHP!'));
+Tranfor::run();
+```
+
+需要 PHP 7.4+ CLI（默认 `php`，`-Dtranforcpp.php=/path/to/php`）。见 [PHP 示例](examples/php)。
+
+### Java
+
+放入 `Main.java`，导入 `tranforcpp.Tranfor`：
+
+```java
+import tranforcpp.Tranfor;
+public class Main {
+    public static void main(String[] args) {
+        Tranfor.on("PlayerJoin", e -> Tranfor.sendMessage(e[0], "Welcome from Java!"));
+        Tranfor.run();
+    }
+}
+```
+
+目录下全部顶层 `.java` 文件与内置 SDK 一起用 `javac` 编译到 `.tranforcpp/java-classes/`，再以**独立 JVM** 运行（与服务器 JVM 隔离）。默认使用服务器 JVM 同目录的 `javac` / `java`（不存在时用 `PATH`），可用 `-Dtranforcpp.javac=` / `-Dtranforcpp.java=` 指定；需要 JDK 8+。主类默认 `Main`，可在 `program.json` 用 `"mainClass": "com.example.Main"` 修改。见 [Java 示例](examples/java)。
+
 ### 语言选择和其他语言
 
-仅有一种语言时自动识别 `.cpp`、`.c`、`main.py` 或 `main.rs`。存在多种语言时需用 `program.json` 明确选择，例如：
+仅有一种语言时自动识别 `.cpp`、`.c`、`main.py`、`main.rs`、`main.js`、`main.go`、`main.rb`、`main.php` 或 `Main.java`。存在多种语言时需用 `program.json` 明确选择，例如：
 
 ```json
 {"protocol": 1, "language": "python", "entrypoint": "scripts/main.py"}
 ```
 
-`python` / `rust` 的 `entrypoint` 必须是程序目录内已有文件，分别默认 `main.py` / `main.rs`；`c` / `cpp` 编译程序目录下全部对应源文件。每个插件子目录运行独立进程，同目录仍只放一个程序入口；Rust 内置适配器面向源码入口，不接管用户已有 Cargo 工程。如需自定义 Cargo 依赖或其他语言，先自行构建后用原有 `process` 适配器启动。参见[协议与语言扩展](docs/protocol.md)。编译输出统一写入程序目录的 `compile.log`，`.tranforcpp/` 是自动维护的构建缓存，不要存放手写代码。
+`python` / `rust` / `javascript` / `ruby` / `php` 的 `entrypoint` 必须是程序目录内已有文件，分别默认 `main.py` / `main.rs` / `main.js` / `main.rb` / `main.php`；`c` / `cpp` / `go` / `java` 编译程序目录下全部对应顶层源文件。每个插件子目录运行独立进程，同目录仍只放一个程序入口；Rust 内置适配器面向源码入口，不接管用户已有 Cargo 工程。如需自定义 Cargo 依赖或其他语言，先自行构建后用原有 `process` 适配器启动。参见[协议与语言扩展](docs/protocol.md)。编译输出统一写入程序目录的 `compile.log`，`.tranforcpp/` 是自动维护的构建缓存，不要存放手写代码。
 
 ## 多语言插件共存
 
@@ -116,11 +185,43 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 | `native` | `native/main.cpp` | 独立 C++ 进程 |
 | `tools` | `tools/main.c` | 独立 C 进程 |
 | `rules` | `rules/main.rs` | 独立 Rust 进程 |
+| `economy` | `economy/main.go` | 独立 Go 进程 |
+| `greeter` | `greeter/main.js` | 独立 Node.js 进程 |
 | `@root` | 根目录 `main.cpp` 等旧入口 | 保留旧根目录程序，可与子目录程序同时运行 |
 
 每个子目录可有自己的 `program.json`、日志、SDK 缓存和依赖。根目录配置的嵌套 `entrypoint` 所在顶层目录归根程序使用，不会再次启动为子插件。只扫描直接子目录；点开头、`@` 开头及符号链接目录不作为插件加载。空目录不启动进程。一个插件编译失败或退出，不会停止其他插件；退出码写入带插件 ID 的日志，状态变为 `STOPPED`，不自动重启。编译/配置失败标记 `FAILED`，由管理员修复后重新启动。
 
 游戏事件只序列化一次，再投递到各插件独立的有界队列。可在每个插件的 `program.json` 中指定 `"events": ["PlayerJoin", "PlayerChat"]`，只接收需要的事件；省略则保留全部事件，空数组不接收游戏事件（仍接收关闭通知）。Spigot 移动事件只报告位置改变，默认每名玩家最多每 100ms 一次；可用 `-Dtranforcpp.move-interval-ms=0` 关闭限频。
+
+## 程序间互相调用
+
+同时运行的插件可以按**插件 ID**（子目录名，根目录程序为 `@root`）互相调用，不论语言。服务端核心负责路由：调用不经过游戏线程，每次调用的 ID 由核心重写，程序只能回复发给自己的调用。
+
+| 能力 | Python | JavaScript | Go | Rust | C++ |
+| --- | --- | --- | --- | --- | --- |
+| 暴露方法 | `@handle("m")` | `handle('m', fn)` | `t.Handle("m", fn)` | `handle("m", \|a\| Ok(..))` | `tranforcpp::handle("m", fn)` |
+| 调用并等待结果 | `call("id", "m", *args)` | `await call('id', 'm', ...args)` | `t.Call("id", "m", args...)` | `call("id", "m", &[..])` | `tranforcpp::call("id", "m", {..})` |
+| 单向通知 | `notify(...)` | `notify(...)` | `t.Notify(...)` | `notify(...)` | `tranforcpp::notify(...)` |
+| 发布 / 订阅 | `publish` / `@subscribe` | `publish` / `subscribe` | `t.Publish` / `t.Subscribe` | `publish` / `run` 中的 `message` 事件 | `tranforcpp::publish` / `run` 中的 `message` 事件 |
+
+Ruby（`Tranfor.handle` / `Tranfor.call`）、PHP（`Tranfor::handle` / `Tranfor::call`）、Java（`Tranfor.handle` / `Tranfor.call`）和 C（`tranforcpp_handle` / `tranforcpp_call` / `tranforcpp_run`）提供同样的功能。例如 Go 程序 `economy` 暴露方法，Python 程序调用它：
+
+```go
+t.Handle("balance", func(args []string) (string, error) { return "100", nil })
+```
+
+```python
+coins = call("economy", "balance", "Alex")   # "100"
+```
+
+- 参数和返回值都是字符串；结构化数据请自行用 JSON 编码。方法抛出的异常 / 返回的错误会在调用方变成该语言的错误（`CallError` 等）。
+- 目标未运行、方法不存在、目标在回复前停止或超时（默认 30 秒，`-Dtranforcpp.call-timeout-ms=`）时调用立即失败，不会卡住。
+- 等待结果期间收到的调用会被**重入处理**，因此 A 调用 B、B 再回调 A 不会死锁；期间到达的游戏事件会在当前处理器返回后按序处理。Python / Ruby / PHP / Java / Rust / C / C++ 应在事件处理器或主线程中调用；Go 和 JavaScript 可并发调用。
+- `publish(topic, ...)` 向除自己以外、接收 `message` 事件的所有插件投递 `message` 事件。若插件 `program.json` 设置了 `events` 过滤，需要把 `"message"` 加入列表；直接调用和回复不受 `events` 过滤。
+- 每个程序可从环境变量 `TRANFORCPP_PROGRAM_ID`（各 SDK 中的 `program_id` / `programId` / `ProgramID`）得知自己的插件 ID。
+- C/C++ 程序要使用调用功能，需改用 `tranforcpp_run` / `tranforcpp::run` 读取事件，不要再自行读取标准输入。
+
+完整示例见 [examples/interop](examples/interop)：Go 记账、Python 商店、JavaScript 欢迎程序互相调用。协议细节见[协议文档](docs/protocol.md#程序之间的调用)。
 
 ## 命令
 
@@ -153,7 +254,7 @@ Java 包名/入口类、加载器 mod ID `tranforcpp`、Python 模块和 Rust cr
 - [原有 Bukkit 映射指南](mapping.md)
 
 ```bash
-mvn verify                       # 需要 gcc / g++ / Python / Rust + Cargo；运行四语言真实进程测试
+mvn verify                       # 需要 gcc / g++ / Python / Rust + Cargo / Node.js / Go / Ruby / PHP / JDK；运行九语言真实进程与互相调用测试
 python3 scripts/test-versions.py  # 版本范围和 Java 边界
 ```
 
