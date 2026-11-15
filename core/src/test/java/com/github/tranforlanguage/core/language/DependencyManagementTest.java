@@ -96,6 +96,91 @@ public class DependencyManagementTest {
         assertFalse(command.arguments().toString().contains("java-deps"));
     }
 
+    @Test public void rubyChecksCachedGemsAndFingerprintsGeneratedLock() throws Exception {
+        Assume.assumeFalse(System.getProperty("os.name").toLowerCase(Locale.ROOT).contains("win"));
+        File dir = temp.newFolder();
+        write(dir, "Gemfile", "source 'https://example.invalid'\n");
+        write(dir, "main.rb", "puts('unused')\n");
+        File bundle = write(dir, "fake-bundle", "#!/usr/bin/env python3\n"
+            + "import os,sys,pathlib\n"
+            + "p=pathlib.Path(os.environ['BUNDLE_PATH']); root=pathlib.Path(os.environ['BUNDLE_GEMFILE']).parent\n"
+            + "if sys.argv[1]=='check': sys.exit(0 if (p/'.ready').exists() else 1)\n"
+            + "if sys.argv[1]=='install':\n"
+            + " p.mkdir(parents=True,exist_ok=True); (p/'.ready').touch()\n"
+            + " (root/'Gemfile.lock').write_text('GEM\\n')\n"
+            + " with (root/'ruby-installs').open('a') as out: out.write('1\\n')\n");
+        assertTrue(bundle.setExecutable(true));
+        String before = System.getProperty("tranforlanguage.bundle");
+        System.setProperty("tranforlanguage.bundle", bundle.getAbsolutePath());
+        try {
+            RubyLanguageProvider provider = new RubyLanguageProvider();
+            provider.prepare(dir, new JsonObject(), Logger.getAnonymousLogger());
+            assertTrue(new File(dir, "Gemfile.lock").isFile());
+            provider.prepare(dir, new JsonObject(), Logger.getAnonymousLogger());
+            assertEquals(1, count(new String(Files.readAllBytes(new File(dir, "ruby-installs").toPath()), StandardCharsets.UTF_8), "1\n"));
+            Files.delete(new File(dir, ".tranforlanguage/ruby-gems/.ready").toPath());
+            provider.prepare(dir, new JsonObject(), Logger.getAnonymousLogger());
+            assertEquals(2, count(new String(Files.readAllBytes(new File(dir, "ruby-installs").toPath()), StandardCharsets.UTF_8), "1\n"));
+        } finally {
+            if (before == null) System.clearProperty("tranforlanguage.bundle");
+            else System.setProperty("tranforlanguage.bundle", before);
+        }
+    }
+
+    @Test public void composerChecksAutoloadAndFingerprintsGeneratedLock() throws Exception {
+        Assume.assumeFalse(System.getProperty("os.name").toLowerCase(Locale.ROOT).contains("win"));
+        File dir = temp.newFolder();
+        write(dir, "composer.json", "{\"name\":\"tfl/plugin\",\"config\":{\"vendor-dir\":\"packages\"}}\n");
+        write(dir, "main.php", "<?php\n");
+        File composer = write(dir, "fake-composer", "#!/usr/bin/env python3\n"
+            + "import pathlib,sys\n"
+            + "root=pathlib.Path.cwd(); vendor=root/'packages'; vendor.mkdir(exist_ok=True)\n"
+            + "(vendor/'autoload.php').write_text('<?php')\n"
+            + "(root/'composer.lock').write_text('{\"packages\":[]}')\n"
+            + "with (root/'php-installs').open('a') as out: out.write('1\\n')\n");
+        assertTrue(composer.setExecutable(true));
+        String before = System.getProperty("tranforlanguage.composer");
+        System.setProperty("tranforlanguage.composer", composer.getAbsolutePath());
+        try {
+            PhpLanguageProvider provider = new PhpLanguageProvider();
+            provider.prepare(dir, new JsonObject(), Logger.getAnonymousLogger());
+            provider.prepare(dir, new JsonObject(), Logger.getAnonymousLogger());
+            assertEquals(1, count(new String(Files.readAllBytes(new File(dir, "php-installs").toPath()), StandardCharsets.UTF_8), "1\n"));
+            Files.delete(new File(dir, "packages/autoload.php").toPath());
+            provider.prepare(dir, new JsonObject(), Logger.getAnonymousLogger());
+            assertEquals(2, count(new String(Files.readAllBytes(new File(dir, "php-installs").toPath()), StandardCharsets.UTF_8), "1\n"));
+        } finally {
+            if (before == null) System.clearProperty("tranforlanguage.composer");
+            else System.setProperty("tranforlanguage.composer", before);
+        }
+    }
+
+    @Test public void javaRemovesInstallMarkerBeforeFailingReplacement() throws Exception {
+        Assume.assumeFalse(System.getProperty("os.name").toLowerCase(Locale.ROOT).contains("win"));
+        File dir = temp.newFolder();
+        write(dir, "Main.java", "import tranforlanguage.TranForLanguage; public class Main {public static void main(String[]a){TranForLanguage.run();}}\n");
+        write(dir, "pom.xml", "<project>first</project>");
+        File mvn = write(dir, "fake-maven", "#!/usr/bin/env python3\n"
+            + "import pathlib,sys\n"
+            + "if pathlib.Path('fail').exists(): sys.exit(1)\n");
+        assertTrue(mvn.setExecutable(true));
+        String before = System.getProperty("tranforlanguage.maven");
+        System.setProperty("tranforlanguage.maven", mvn.getAbsolutePath());
+        try {
+            JavaLanguageProvider provider = new JavaLanguageProvider();
+            provider.prepare(dir, new JsonObject(), Logger.getAnonymousLogger());
+            File stamp = new File(dir, ".tranforlanguage/java-dependencies");
+            assertTrue(stamp.isFile());
+            write(dir, "pom.xml", "<project>changed</project>");
+            write(dir, "fail", "");
+            try { provider.prepare(dir, new JsonObject(), Logger.getAnonymousLogger()); fail(); }
+            catch (IOException expected) { assertFalse(stamp.isFile()); }
+        } finally {
+            if (before == null) System.clearProperty("tranforlanguage.maven");
+            else System.setProperty("tranforlanguage.maven", before);
+        }
+    }
+
     private static int count(String text, String needle) {
         int n = 0, at = 0;
         while ((at = text.indexOf(needle, at)) >= 0) { n++; at += needle.length(); }
