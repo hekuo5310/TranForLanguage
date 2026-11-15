@@ -98,6 +98,33 @@ SDK 由服务端自动提供，不需要复制任何 SDK 文件，也不需要�
 | `command` | 字符串数组 | `process` 语言的完整命令，直接执行，不经过 shell。 |
 | `events` | 字符串数组 | 只接收列出的事件；省略表示接收全部；空数组表示不接收游戏事件（仍会收到 `shutdown`）。要接收其他插件发布的消息，需要包含 `"message"`。程序间调用不受此过滤影响。 |
 
+### 3.4 第三方依赖（可选）
+
+TFL 使用各语言的常见依赖清单；**没有清单时沿用原先的运行方式**。有清单的依赖在插件准备/重载阶段处理，安装失败会显示为 `FAILED`，详情见插件目录下的 `compile.log`。安装工具和网络需由服主提供；请只运行可信插件。
+
+| 语言 | 插件目录中的依赖声明 | 行为与要求 |
+| --- | --- | --- |
+| Python | `requirements.txt` | `python -m venv` 创建 `.tranforlanguage/python-venv/`，用该环境的 `pip install -r` 安装。内容变更后重新创建环境；需 `venv` 和 `pip` |
+| JavaScript | `package.json`（可选 `package-lock.json`） | 在 `.tranforlanguage/node-project/` 安装 npm 包；有锁文件时使用 `npm ci`，否则 `npm install`。通过 `NODE_PATH` 加载，不改动用户代码 |
+| Rust | `Cargo.toml` | 在自动生成的 Cargo 构建清单中保留用户的包配置和依赖，注入内置 `tranforlanguage` 路径依赖及入口 target；由 Cargo 构建（支持常规单包工程，避免自行定义同名 `tranforlanguage` 依赖） |
+| Go | `go.mod`（可选 `go.sum`） | 将文件复制进托管构建目录，使用 `go mod edit` 注入 TFL SDK 的本地 `replace`；原始文件保持不变 |
+| Ruby | `Gemfile`（可选 `Gemfile.lock`） | 通过 Bundler `bundle install` 安装到 `.tranforlanguage/ruby-gems/`，使用 `bundle exec ruby` 启动；需安装 `bundle` |
+| PHP | `composer.json`（可选 `composer.lock`） | 通过 Composer 安装到插件自己的 `vendor/`；需安装 `composer`，用户代码按 Composer 规范自行 `require __DIR__ . '/vendor/autoload.php';` |
+| Java | `lib/*.jar`、可选 `pom.xml` | 将 `lib/` 的 JAR 放入编译和运行 classpath；如果有 `pom.xml`，使用 Maven `dependency:copy-dependencies` 下载运行时依赖到 `.tranforlanguage/java-deps/`；需 `mvn` |
+| C/C++ | `program.json` 中的 `pkgConfig` 字符串数组 | 使用系统 `pkg-config --cflags --libs` 查找已经安装的本地开发库，并将参数传给 gcc/g++；不会自动安装操作系统软件包 |
+
+C/C++ 示例：
+
+```json
+{"language":"cpp","pkgConfig":["libcurl"]}
+```
+
+- 所有依赖操作都在服务端的插件准备线程中进行，不在 Minecraft 游戏线程中执行；安装时间取决于本机缓存与网络。
+- Python、JavaScript、Ruby、PHP 和 Java 对依赖清单使用内容指纹；未变更时跳过重复安装。删除 Python 的依赖会重新创建虚拟环境。其他语言由其官方构建/包管理器增量处理。
+- 这些语言的外部包可能执行构建脚本或原生代码，TFL 不提供沙箱或自动审计。生产环境建议锁定依赖版本。
+- 调整清单后执行 `/tranforlanguage reload <id>`。只改变 `requirements.txt` 等依赖文件不会自动触发热重载。
+- 如果 `pkg-config` 输出包含带空格的复杂编译参数，请优先使用不含空格的安装路径；当前实现按照空白分割编译参数。
+
 ## 4. 生命周期与命令
 
 | 状态 | 含义 |
