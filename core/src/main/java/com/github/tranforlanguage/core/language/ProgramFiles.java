@@ -5,8 +5,9 @@ import java.io.*;
 import java.nio.file.*;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
-import java.util.List;
-import java.util.concurrent.TimeUnit;
+import java.util.*;
+import java.util.concurrent.*;
+import java.util.regex.*;
 
 /** Managed SDK resources and tool invocations, shared by language adapters. */
 final class ProgramFiles {
@@ -37,6 +38,114 @@ final class ProgramFiles {
         StringBuilder hex = new StringBuilder();
         for (byte b : digest.digest()) hex.append(String.format("%02x", b & 0xff));
         return hex.toString();
+    }
+    /** Include local pip -r/--requirement and -c/--constraint files in the cache key. */
+    static String pythonFingerprint(File requirements, String interpreter) throws Exception {
+        List<Object> inputs = new ArrayList<>();
+        Set<Path> visited = new HashSet<>();
+        addRequirements(requirements.getCanonicalFile(), inputs, visited);
+        inputs.add(interpreter);
+        return fingerprint(inputs.toArray());
+    }
+    private static final Pattern PIP_INCLUDE = Pattern.compile(
+        "^\\s*(?:--requirement|--constraint|-r|-c)(?:\\s+|=)?(.+?)\\s*$");
+    private static void addRequirements(File file, List<Object> inputs, Set<Path> visited) throws Exception {
+        Path path = file.getCanonicalFile().toPath();
+        if (!visited.add(path)) return;
+        inputs.add(file.getCanonicalFile());
+        for (String raw : Files.readAllLines(path, StandardCharsets.UTF_8)) {
+            String line = raw.trim();
+            if (line.startsWith("#")) continue;
+            Matcher match = PIP_INCLUDE.matcher(line);
+            if (!match.matches()) continue;
+            String reference = match.group(1).trim().replaceFirst("\\s+#.*$", "");
+            if ((reference.startsWith("\"") && reference.endsWith("\""))
+                || (reference.startsWith("'") && reference.endsWith("'")))
+                reference = reference.substring(1, reference.length() - 1);
+            if (reference.isEmpty()) throw new IOException("Empty pip requirements include in " + path);
+            File nested = new File(file.getParentFile(), reference);
+            addRequirements(nested.getCanonicalFile(), inputs, visited);
+        }
+    }
+    /** Parse pkg-config's shell-escaped flags WITHOUT invoking a shell. */
+    static List<String> splitArguments(String flags) throws IOException {
+        List<String> result = new ArrayList<>();
+        StringBuilder word = new StringBuilder();
+        boolean single = false, doubled = false, escaped = false, started = false;
+        for (int i = 0; i < flags.length(); i++) {
+            char c = flags.charAt(i);
+            if (escaped) {
+                word.append(c);
+                escaped = false;
+            } else if (c == '\\' && !single) {
+                started = true;
+                escaped = true;
+            } else if (c == '\'' && !doubled) {
+                single = !single;
+                started = true;
+            } else if (c == '"' && !single) {
+                doubled = !doubled;
+                started = true;
+            } else if (Character.isWhitespace(c) && !single && !doubled) {
+                if (started) result.add(word.toString());
+                word.setLength(0);
+                started = false;
+            } else {
+                started = true;
+                word.append(c);
+            }
+        }
+        if (escaped || single || doubled) throw new IOException("Unterminated escape or quote in dependency flags");
+        if (started) result.add(word.toString());
+        return result;
+    }
+    /**
+     * Concurrently drain a tool's output while waiting. Both operations share a deadline,
+     * preventing stalled pipes from indefinitely blocking program reloads.
+     */
+    static String capture(File directory, List<String> command, int seconds, int maxBytes)
+        throws IOException, InterruptedException {
+        final long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(seconds);
+        Process process = new ProcessBuilder(command).directory(directory).redirectErrorStream(true).start();
+        ExecutorService reader = Executors.newSingleThreadExecutor(job -> {
+            Thread thread = new Thread(job, "TranForLanguage-ToolOutput");
+            thread.setDaemon(true);
+            return thread;
+        });
+        Future<byte[]> output = reader.submit(() -> {
+            ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+            byte[] chunk = new byte[8192];
+            try (InputStream stream = process.getInputStream()) {
+                int n;
+                while ((n = stream.read(chunk)) != -1) {
+                    if (buffer.size() + n > maxBytes) throw new IOException("Tool output exceeds " + maxBytes + " bytes");
+                    buffer.write(chunk, 0, n);
+                }
+            }
+            return buffer.toByteArray();
+        });
+        try {
+            long remaining = Math.max(0, deadline - System.nanoTime());
+            if (!process.waitFor(remaining, TimeUnit.NANOSECONDS))
+                throw new IOException("Tool timed out: " + command.get(0));
+            remaining = Math.max(0, deadline - System.nanoTime());
+            byte[] bytes;
+            try { bytes = output.get(remaining, TimeUnit.NANOSECONDS); }
+            catch (TimeoutException e) { throw new IOException("Tool output timed out: " + command.get(0), e); }
+            catch (ExecutionException e) {
+                Throwable cause = e.getCause();
+                if (cause instanceof IOException) throw (IOException) cause;
+                throw new IOException("Unable to read tool output", cause);
+            }
+            String result = new String(bytes, StandardCharsets.UTF_8);
+            if (process.exitValue() != 0) throw new IOException("Tool failed: " + command.get(0) + ": " + result);
+            return result;
+        } finally {
+            if (process.isAlive()) process.destroyForcibly();
+            try { process.getInputStream().close(); } catch (IOException ignored) {}
+            output.cancel(true);
+            reader.shutdownNow();
+        }
     }
     static boolean matches(File stamp, String fingerprint) throws IOException {
         return stamp.isFile() && fingerprint.equals(new String(Files.readAllBytes(stamp.toPath()), StandardCharsets.UTF_8));
