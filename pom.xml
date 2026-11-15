@@ -24,8 +24,8 @@
     <dependency><groupId>net.kyori</groupId><artifactId>adventure-text-minimessage</artifactId><version>4.17.0</version></dependency>
     <dependency><groupId>net.kyori</groupId><artifactId>adventure-text-serializer-legacy</artifactId><version>4.17.0</version></dependency>
     <dependency><groupId>junit</groupId><artifactId>junit</artifactId><version>4.13.2</version><scope>test</scope></dependency>
-    <!-- Legacy Spigot 1.8 description parsing uses Guava internally in tests. -->
-    <dependency><groupId>com.google.guava</groupId><artifactId>guava</artifactId><version>31.1-jre</version><scope>test</scope></dependency>
+    <!-- Historical Spigot API signatures reference Guava; compile against it without bundling it. -->
+    <dependency><groupId>com.google.guava</groupId><artifactId>guava</artifactId><version>31.1-jre</version><scope>provided</scope></dependency>
     <!-- PluginDescriptorTest uses YAML explicitly; keep the parser test-only and versioned. -->
     <dependency><groupId>org.yaml</groupId><artifactId>snakeyaml</artifactId><version>1.33</version><scope>test</scope></dependency>
   </dependencies>
