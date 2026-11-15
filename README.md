@@ -2,14 +2,16 @@
 
 让 Minecraft 服务端通过统一进程协议运行 C、C++、Python、Rust、JavaScript、Go、Ruby、PHP 和 Java 程序。不同语言的插件同时运行，并能[互相调用](#程序间互相调用)。
 
+编写插件请看 **[开发文档](docs/development.md)**：快速开始、`program.json` 参考、全部 34 个事件及参数、各语言 SDK 速查和排错。
+
 ## 平台与构建
 
 | 产物 | 目标 | 构建工具 |
 | --- | --- | --- |
-| `tranforlanguage-spigot-2.2.0.jar` | Spigot / 常规 Paper 分支，官方 API 1.8–26.3 | Maven |
-| `tranforlanguage-fabric-<游戏版本>-2.2.0.jar` | Fabric 1.20–26.3，逐版本构建 | Gradle + Loom |
-| `tranforlanguage-neoforge-<游戏版本>-2.2.0.jar` | NeoForge 1.21–26.3，逐版本构建 | Gradle + ModDevGradle |
-| `tranforlanguage-forge-<游戏版本>-2.2.0.jar` | Forge 1.20.x–1.21.x，按官方已发布版本构建 | Gradle + ForgeGradle |
+| `tranforlanguage-spigot-2.2.2.jar` | Spigot / 常规 Paper 分支，官方 API 1.8–26.3 | Maven |
+| `tranforlanguage-fabric-<游戏版本>-2.2.2.jar` | Fabric 1.20–26.3，逐版本构建；需要 Fabric Loader 0.17.0+ | Gradle + Loom |
+| `tranforlanguage-neoforge-<游戏版本>-2.2.2.jar` | NeoForge 1.21–26.3，逐版本构建 | Gradle + ModDevGradle |
+| `tranforlanguage-forge-<游戏版本>-2.2.2.jar` | Forge 1.20.x–1.21.x，按官方已发布版本构建 | Gradle + ForgeGradle |
 
 目标范围与运行实测是不同的检查。[兼容说明](docs/compatibility.md)列出版本矩阵、尚未接入的模组事件和验证边界。Spigot 1.8 之前及 Folia 尚未建立兼容保障。
 
@@ -21,7 +23,7 @@
 mvn clean verify
 ```
 
-安装 `target/tranforlanguage-spigot-2.2.0.jar` 到 `plugins/`。不再为同一插件维护 Maven / Gradle 两份构建。
+安装 `target/tranforlanguage-spigot-2.2.2.jar` 到 `plugins/`。不再为同一插件维护 Maven / Gradle 两份构建。
 
 ### Fabric / Forge / NeoForge
 
@@ -41,7 +43,7 @@ gradle -p adapters/forge clean build
 
 构建还需要目标游戏的 Java toolchain（17 / 21 / 25），见[版本锁文件](compatibility/versions.json)中的 `java` 与 `gradle` 字段。CI 自动安装这些 JDK 和正确的 Gradle。产物在相应 `adapters/<加载器>/build/libs/`，仅安装与服务器加载器及 Minecraft 版本完全一致的发行 JAR 到 `mods/`。Fabric 额外安装对应游戏版本的 Fabric API。
 
-也可从 GitHub Actions 下载按平台/游戏版本区分的产物。常规版本通过与项目版本一致的 `v*` 标签发布；本次 2.2.0 由 main 分支上带 `[release-v2.2.0]` 标记的提交在完整构建通过后自动创建标签并发布，不覆盖指向其他提交的标签。
+也可从 GitHub Actions 下载按平台/游戏版本区分的产物。常规版本通过与项目版本一致的 `v*` 标签发布；本次 2.2.2 由 main 分支上带 `[release-v2.2.2]` 标记的提交在完整构建通过后自动创建标签并发布，不覆盖指向其他提交的标签。标记必须出现在最终推送到 main 的提交信息里，合并 PR 前请检查 GitHub 显示的提交信息；该版本不能通过手动推送标签发布。
 
 ## 安装程序
 
@@ -191,7 +193,7 @@ public class Main {
 
 每个子目录可有自己的 `program.json`、日志、SDK 缓存和依赖。根目录配置的嵌套 `entrypoint` 所在顶层目录归根程序使用，不会再次启动为子插件。只扫描直接子目录；点开头、`@` 开头及符号链接目录不作为插件加载。空目录不启动进程。一个插件编译失败或退出，不会停止其他插件；退出码写入带插件 ID 的日志，状态变为 `STOPPED`，不自动重启。编译/配置失败标记 `FAILED`，由管理员修复后重新启动。
 
-游戏事件只序列化一次，再投递到各插件独立的有界队列。可在每个插件的 `program.json` 中指定 `"events": ["PlayerJoin", "PlayerChat"]`，只接收需要的事件；省略则保留全部事件，空数组不接收游戏事件（仍接收关闭通知）。Spigot 移动事件只报告位置改变，默认每名玩家最多每 100ms 一次；可用 `-Dtranforlanguage.move-interval-ms=0` 关闭限频。
+游戏事件只序列化一次，再投递到各插件独立的有界队列。可在每个插件的 `program.json` 中指定 `"events": ["PlayerJoin", "PlayerChat"]`，只接收需要的事件（全部事件及参数见[开发文档](docs/development.md#5-事件参考)）；省略则保留全部事件，空数组不接收游戏事件（仍接收关闭通知）。Spigot 移动事件只报告位置改变，默认每名玩家最多每 100ms 一次；可用 `-Dtranforlanguage.move-interval-ms=0` 关闭限频。
 
 ## 程序间互相调用
 
@@ -269,6 +271,7 @@ coins = call("economy", "balance", "Alex")   # "100"
 
 ## 开发
 
+- [开发文档](docs/development.md)：插件开发与参与本项目
 - [协议与语言扩展](docs/protocol.md)
 - [平台事件覆盖与兼容验证](docs/compatibility.md)
 - [原有 Bukkit 映射指南](mapping.md)

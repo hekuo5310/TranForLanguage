@@ -17,13 +17,38 @@ public final class ModEvents {
     private static final Map<UUID, Position> positions = new HashMap<>();
     private static final Set<UUID> present = new HashSet<>();
     private static final Set<ServerLevel> loaded = Collections.newSetFromMap(new IdentityHashMap<>());
+    /** Last observed player state; changes are reported once per tick, never on first sight. */
     private static final class Position {
-        double x, y, z; Object level;
+        double x, y, z; ServerLevel level;
+        String gameMode; int experience; boolean sneaking, sprinting, flying, sleeping;
         Position(ServerPlayer player) { update(player); }
         boolean changed(ServerPlayer player) { return level != player.level() || x != player.getX() || y != player.getY() || z != player.getZ(); }
-        void update(ServerPlayer player) { level = player.level(); x = player.getX(); y = player.getY(); z = player.getZ(); }
+        void update(ServerPlayer player) {
+            level = (ServerLevel) player.level(); x = player.getX(); y = player.getY(); z = player.getZ();
+            gameMode = player.gameMode.getGameModeForPlayer().name(); experience = player.experienceLevel;
+            sneaking = player.isShiftKeyDown(); sprinting = player.isSprinting();
+            flying = player.getAbilities().flying; sleeping = player.isSleeping();
+        }
+        /** Emits state-change events by comparing with the new state, then stores it. */
+        boolean report(ServerPlayer player) {
+            String name = player.getName().getString();
+            ServerLevel previousLevel = level; String previousMode = gameMode; int previousExperience = experience;
+            boolean wasSneaking = sneaking, wasSprinting = sprinting, wasFlying = flying, wasSleeping = sleeping;
+            boolean moved = changed(player);
+            update(player);
+            if (previousLevel != level) emit("PlayerChangeWorld", name, previousLevel.dimension().toString(), level.dimension().toString());
+            if (!previousMode.equals(gameMode)) emit("PlayerGameModeChange", name, gameMode);
+            if (previousExperience != experience) emit("PlayerLevelChange", name, String.valueOf(previousExperience), String.valueOf(experience));
+            if (wasSneaking != sneaking) emit("PlayerToggleSneak", name, String.valueOf(sneaking));
+            if (wasSprinting != sprinting) emit("PlayerToggleSprint", name, String.valueOf(sprinting));
+            if (wasFlying != flying) emit("PlayerToggleFlight", name, String.valueOf(flying));
+            if (!wasSleeping && sleeping) emit("PlayerBedEnter", name);
+            if (wasSleeping && !sleeping) emit("PlayerBedLeave", name);
+            return moved;
+        }
     }
     private static final Map<ServerLevel, Boolean> weather = new IdentityHashMap<>();
+    private static final Map<ServerLevel, Boolean> thunder = new IdentityHashMap<>();
     private static final EventRateLimiter<UUID> moves = new EventRateLimiter<>(
         TimeUnit.MILLISECONDS.toNanos(Math.max(0L, Long.getLong("tranforlanguage.move-interval-ms", 100L))));
     private ModEvents() {}
@@ -31,7 +56,7 @@ public final class ModEvents {
         detach(); server = owner; programs = manager;
     }
     public static void detach() {
-        programs = null; server = null; positions.clear(); weather.clear(); moves.clear(); damageDepth.clear(); present.clear(); loaded.clear();
+        programs = null; server = null; positions.clear(); weather.clear(); thunder.clear(); moves.clear(); damageDepth.clear(); present.clear(); loaded.clear();
     }
     public static void emit(String name, Object... args) {
         ProgramManager manager = programs;
@@ -57,11 +82,7 @@ public final class ModEvents {
             UUID id = player.getUUID(); present.add(id);
             Position previous = positions.get(id);
             if (previous == null) positions.put(id, new Position(player));
-            else {
-                boolean changed = previous.changed(player);
-                previous.update(player);
-                if (changed && moves.allow(id, now)) emit("PlayerMove", player.getName().getString());
-            }
+            else if (previous.report(player) && moves.allow(id, now)) emit("PlayerMove", player.getName().getString());
         }
         Iterator<UUID> ids = positions.keySet().iterator();
         while (ids.hasNext()) { UUID id = ids.next(); if (!present.contains(id)) { ids.remove(); moves.forget(id); } }
@@ -72,7 +93,12 @@ public final class ModEvents {
             Boolean previous = weather.put(level, raining);
             if (previous != null && previous.booleanValue() != raining)
                 emit("WeatherChange", level.dimension().toString(), String.valueOf(raining));
+            boolean thundering = level.isThundering();
+            Boolean wasThundering = thunder.put(level, thundering);
+            if (wasThundering != null && wasThundering.booleanValue() != thundering)
+                emit("ThunderChange", level.dimension().toString(), String.valueOf(thundering));
         }
         weather.keySet().retainAll(loaded);
+        thunder.keySet().retainAll(loaded);
     }
 }

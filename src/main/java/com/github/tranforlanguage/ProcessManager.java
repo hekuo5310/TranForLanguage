@@ -69,6 +69,14 @@ public class ProcessManager implements Listener {
                     ((org.bukkit.entity.Item) event.getClass().getMethod("getItem").invoke(event)).getItemStack().getType().name());
                 } catch (ReflectiveOperationException e) { plugin.getLogger().warning(e.toString()); }
             });
+            // 1.12 introduced advancements; the API is reached reflectively to keep the 1.8 baseline.
+            optional("org.bukkit.event.player.PlayerAdvancementDoneEvent", event -> {
+                try {
+                    Object advancement = event.getClass().getMethod("getAdvancement").invoke(event);
+                    Object key = advancement.getClass().getMethod("getKey").invoke(advancement);
+                    sendEvent("PlayerAdvancement", ((org.bukkit.event.player.PlayerEvent) event).getPlayer().getName(), String.valueOf(key));
+                } catch (ReflectiveOperationException e) { plugin.getLogger().warning(e.toString()); }
+            });
             registered = true;
         }
         runtime.reload().whenComplete((v, error) -> { if (error != null) plugin.getLogger().severe("程序启动失败: " + error); });
@@ -213,5 +221,61 @@ public class ProcessManager implements Listener {
     public void onHangingBreak(HangingBreakEvent event) {
         sendEvent("HangingBreak", event.getEntity().getType().name(), event.getCause().name());
     }
-    
+
+    // State-change events report only changes that actually happen (cancelled attempts are skipped),
+    // matching the mod loaders, which observe the resulting state once per tick.
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onChangedWorld(PlayerChangedWorldEvent event) {
+        sendEvent("PlayerChangeWorld", event.getPlayer().getName(), event.getFrom().getName(), event.getPlayer().getWorld().getName());
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onGameModeChange(PlayerGameModeChangeEvent event) {
+        sendEvent("PlayerGameModeChange", event.getPlayer().getName(), event.getNewGameMode().name());
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onLevelChange(PlayerLevelChangeEvent event) {
+        sendEvent("PlayerLevelChange", event.getPlayer().getName(), String.valueOf(event.getOldLevel()), String.valueOf(event.getNewLevel()));
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onToggleSneak(PlayerToggleSneakEvent event) {
+        sendEvent("PlayerToggleSneak", event.getPlayer().getName(), String.valueOf(event.isSneaking()));
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onToggleSprint(PlayerToggleSprintEvent event) {
+        sendEvent("PlayerToggleSprint", event.getPlayer().getName(), String.valueOf(event.isSprinting()));
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onToggleFlight(PlayerToggleFlightEvent event) {
+        sendEvent("PlayerToggleFlight", event.getPlayer().getName(), String.valueOf(event.isFlying()));
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onBedEnter(PlayerBedEnterEvent event) {
+        sendEvent("PlayerBedEnter", event.getPlayer().getName());
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onBedLeave(PlayerBedLeaveEvent event) {
+        sendEvent("PlayerBedLeave", event.getPlayer().getName());
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onThunderChange(org.bukkit.event.weather.ThunderChangeEvent event) {
+        sendEvent("ThunderChange", event.getWorld().getName(), String.valueOf(event.toThunderState()));
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onKick(PlayerKickEvent event) {
+        sendEvent("PlayerKick", event.getPlayer().getName(), String.valueOf(event.getReason()));
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onItemConsume(PlayerItemConsumeEvent event) {
+        sendEvent("PlayerItemConsume", event.getPlayer().getName(), event.getItem().getType().name());
+    }
 }
