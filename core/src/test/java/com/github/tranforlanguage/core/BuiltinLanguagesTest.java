@@ -110,6 +110,7 @@ public class BuiltinLanguagesTest {
         assertTrue(new File(venv, "pyvenv.cfg").isFile());
         File stamp = new File(venv, ".dependencies-sha256");
         byte[] original = Files.readAllBytes(stamp.toPath());
+        platform.message = null;
         runtime.reload().get(120, TimeUnit.SECONDS);
         receive("external package loaded");
         assertArrayEquals(original, Files.readAllBytes(stamp.toPath()));
@@ -125,6 +126,9 @@ public class BuiltinLanguagesTest {
             + module.toURI().toASCIIString() + "\"}}");
         write("main.js", "const t=require('tranforlanguage');t.broadcast(require('tfl-offline-dependency'));t.run();\n");
         runtime.reload().get(120, TimeUnit.SECONDS);
+        File installed = new File(platform.dir, ".tranforlanguage/node-project/node_modules/tfl-offline-dependency");
+        assertTrue("npm package missing; compile.log: " + new String(Files.readAllBytes(
+            new File(platform.dir, "compile.log").toPath()), StandardCharsets.UTF_8), installed.exists());
         receive("node-pkg-ok");
         assertTrue(new File(platform.dir, ".tranforlanguage/node-project/.dependencies-sha256").isFile());
     }
