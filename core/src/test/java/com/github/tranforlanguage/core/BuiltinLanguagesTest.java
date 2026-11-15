@@ -58,6 +58,7 @@ public class BuiltinLanguagesTest {
         assertTrue(stamp.isFile());
         String original = new String(Files.readAllBytes(stamp.toPath()), StandardCharsets.UTF_8);
         write("requirements.txt", "# changed dependency list\n");
+        platform.message = null;
         runtime.reload().get(180, TimeUnit.SECONDS);
         receive("venv");
         assertNotEquals(original, new String(Files.readAllBytes(stamp.toPath()), StandardCharsets.UTF_8));
