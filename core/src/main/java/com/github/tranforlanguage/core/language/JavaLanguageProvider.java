@@ -27,7 +27,9 @@ public final class JavaLanguageProvider implements LanguageProvider {
         if (pom.isFile()) {
             File stamp = new File(directory, ".tranforlanguage/java-dependencies");
             String fingerprint = ProgramFiles.fingerprint(pom);
-            if (!ProgramFiles.matches(stamp, fingerprint)) {
+            if (!ProgramFiles.matches(stamp, fingerprint) || !dependencies.isDirectory()) {
+                // A failed replacement must never leave the previous success stamp usable.
+                Files.deleteIfExists(stamp.toPath());
                 ProgramFiles.deleteTree(dependencies);
                 Files.createDirectories(dependencies.toPath());
                 ProgramFiles.build(directory, Arrays.asList(
@@ -38,7 +40,10 @@ public final class JavaLanguageProvider implements LanguageProvider {
             }
         }
         List<File> jars = new ArrayList<>();
-        for (File folder : Arrays.asList(new File(directory, "lib"), dependencies)) {
+        List<File> folders = new ArrayList<>();
+        folders.add(new File(directory, "lib"));
+        if (pom.isFile()) folders.add(dependencies);
+        for (File folder : folders) {
             File[] contents = folder.listFiles((d, name) -> name.endsWith(".jar"));
             if (contents != null) jars.addAll(Arrays.asList(contents));
         }
