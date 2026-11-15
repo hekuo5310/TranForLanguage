@@ -1,6 +1,8 @@
 package com.github.tranforlanguage.core.language;
 
 import java.io.*;
+import com.google.gson.*;
+import java.util.concurrent.TimeUnit;
 import java.nio.file.Files;
 import java.util.*;
 import java.util.logging.Logger;
@@ -27,14 +29,17 @@ public class CppCompiler {
     }
     public int countPlugins() { return getPluginFiles().size(); }
     public File compile(File cppDir) {
-        try { return compileChecked(cppDir); }
+        return compile(cppDir, new JsonObject());
+    }
+    public File compile(File cppDir, JsonObject configuration) {
+        try { return compileChecked(cppDir, configuration); }
         catch (IOException e) { throw new UncheckedIOException(e); }
         catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException((c ? "C" : "C++") + " compilation interrupted", e);
         }
     }
-    private File compileChecked(File dir) throws IOException, InterruptedException {
+    private File compileChecked(File dir, JsonObject configuration) throws IOException, InterruptedException {
         Files.createDirectories(dir.toPath());
         File[] sources = dir.listFiles((d, name) -> name.endsWith(c ? ".c" : ".cpp"));
         if (sources == null || sources.length == 0) return null;
@@ -52,6 +57,40 @@ public class CppCompiler {
         // The shared event loop / call runtime; compiled as C++ by the C++ toolchain.
         if (!c) args.addAll(Arrays.asList("-x", "c++"));
         args.add(rpc.getAbsolutePath());
+        if (configuration.has("pkgConfig")) {
+            JsonArray packages = configuration.getAsJsonArray("pkgConfig");
+            if (packages == null || packages.size() == 0)
+                throw new IllegalArgumentException("pkgConfig must be a nonempty string array");
+            List<String> command = new ArrayList<>();
+            command.add(System.getProperty("tranforlanguage.pkgconfig", "pkg-config"));
+            command.add("--cflags");
+            command.add("--libs");
+            for (JsonElement element : packages) {
+                if (!element.isJsonPrimitive() || !element.getAsJsonPrimitive().isString())
+                    throw new IllegalArgumentException("pkgConfig must contain package names");
+                String name = element.getAsString();
+                if (!name.matches("[A-Za-z0-9_.+\\-]+") || name.startsWith("-"))
+                    throw new IllegalArgumentException("Invalid pkg-config package: " + name);
+                command.add(name);
+            }
+            Process process = new ProcessBuilder(command).directory(dir).redirectErrorStream(true).start();
+            ByteArrayOutputStream output = new ByteArrayOutputStream();
+            byte[] buffer = new byte[8192];
+            // pkg-config normally emits a short line; never allow unbounded output.
+            try (InputStream stream = process.getInputStream()) {
+                int n;
+                while ((n = stream.read(buffer)) >= 0) {
+                    if (output.size() + n > 65536) throw new IOException("pkg-config output too long");
+                    output.write(buffer, 0, n);
+                }
+            } finally {
+                if (process.isAlive() && !process.waitFor(10, TimeUnit.SECONDS)) process.destroyForcibly();
+            }
+            if (process.exitValue() != 0)
+                throw new IOException("pkg-config failed: " + output.toString("UTF-8"));
+            String flags = output.toString("UTF-8").trim();
+            if (!flags.isEmpty()) args.addAll(Arrays.asList(flags.split("\\s+")));
+        }
         ProgramFiles.build(dir, args, 120);
         if (!executable.isFile()) throw new IOException("Compiler did not produce the program; see compile.log");
         logger.info((c ? "C" : "C++") + " compilation complete: " + sources.length + " source(s)");
