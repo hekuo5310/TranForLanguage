@@ -142,7 +142,7 @@ final class ProgramFiles {
             return result;
         } finally {
             if (process.isAlive()) process.destroyForcibly();
-            try { process.getInputStream().close(); } catch (IOException ignored) {}
+            // The reader owns the stream. Closing it here could itself block behind read().
             output.cancel(true);
             reader.shutdownNow();
         }
