@@ -13,14 +13,15 @@ public final class PythonLanguageProvider implements LanguageProvider {
         File source = ProgramFiles.entrypoint(directory, configuration, "main.py");
         ProgramFiles.sdk(directory, "python/tranforlanguage.py");
         File bootstrap = ProgramFiles.sdk(directory, "python/bootstrap.py");
-        String interpreter = System.getProperty("tranforlanguage.python", "python3");
+        final String baseInterpreter = System.getProperty("tranforlanguage.python", "python3");
+        String interpreter = baseInterpreter;
         File requirements = new File(directory, "requirements.txt");
         if (requirements.isFile()) {
             File venv = new File(directory, ".tranforlanguage/python-venv");
             boolean windows = System.getProperty("os.name").toLowerCase(Locale.ROOT).contains("win");
             File python = new File(venv, windows ? "Scripts/python.exe" : "bin/python");
-            ProgramFiles.cached(venv, "python:" + interpreter, () -> {
-                ProgramFiles.build(directory, Arrays.asList(interpreter, "-m", "venv", venv.getAbsolutePath()), 120);
+            ProgramFiles.cached(venv, "python:" + baseInterpreter, () -> {
+                ProgramFiles.build(directory, Arrays.asList(baseInterpreter, "-m", "venv", venv.getAbsolutePath()), 120);
                 ProgramFiles.build(directory, Arrays.asList(python.getAbsolutePath(), "-m", "pip",
                     "install", "--disable-pip-version-check", "--no-input", "-r", requirements.getAbsolutePath()), 300);
             }, requirements);
