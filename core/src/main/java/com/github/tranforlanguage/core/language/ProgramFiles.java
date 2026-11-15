@@ -3,6 +3,8 @@ package com.github.tranforlanguage.core.language;
 import com.google.gson.JsonObject;
 import java.io.*;
 import java.nio.file.*;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -20,6 +22,28 @@ final class ProgramFiles {
             Files.copy(input, target.toPath(), StandardCopyOption.REPLACE_EXISTING);
         }
         return target.getAbsoluteFile();
+    }
+    /** Hash input files and interpreter identity to avoid repeat installs. */
+    static String fingerprint(Object... inputs) throws Exception {
+        MessageDigest digest = MessageDigest.getInstance("SHA-256");
+        for (Object input : inputs) {
+            if (input == null) continue;
+            if (input instanceof File) {
+                digest.update(((File) input).getName().getBytes(StandardCharsets.UTF_8));
+                digest.update(Files.readAllBytes(((File) input).toPath()));
+            } else digest.update(input.toString().getBytes(StandardCharsets.UTF_8));
+            digest.update((byte) 0);
+        }
+        StringBuilder hex = new StringBuilder();
+        for (byte b : digest.digest()) hex.append(String.format("%02x", b & 0xff));
+        return hex.toString();
+    }
+    static boolean matches(File stamp, String fingerprint) throws IOException {
+        return stamp.isFile() && fingerprint.equals(new String(Files.readAllBytes(stamp.toPath()), StandardCharsets.UTF_8));
+    }
+    static void stamp(File file, String fingerprint) throws IOException {
+        Files.createDirectories(file.toPath().getParent());
+        Files.write(file.toPath(), fingerprint.getBytes(StandardCharsets.UTF_8));
     }
     /** Top-level files of the program directory with the extension, sorted for reproducible builds. */
     static File[] sources(File directory, String extension) {
