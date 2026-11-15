@@ -3,6 +3,8 @@ package com.github.tranforlanguage.core.language;
 import com.google.gson.JsonObject;
 import java.io.*;
 import java.nio.file.*;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -53,6 +55,66 @@ final class ProgramFiles {
         if (!source.toPath().startsWith(directory.getCanonicalFile().toPath()) || !source.isFile())
             throw new IOException("Missing program entrypoint inside program directory: " + name);
         return source;
+    }
+    /** A manifest-driven, isolated dependency cache. A failed install never leaves a valid stamp. */
+    interface Setup { void run() throws Exception; }
+    static void cached(File cache, String identity, Setup setup, File... inputs) throws Exception {
+        MessageDigest digest = MessageDigest.getInstance("SHA-256");
+        digest.update(identity.getBytes(StandardCharsets.UTF_8));
+        for (File input : inputs) {
+            digest.update(input.getName().getBytes(StandardCharsets.UTF_8));
+            digest.update((byte) (input.isFile() ? 1 : 0));
+            if (input.isFile()) digest.update(Files.readAllBytes(input.toPath()));
+        }
+        byte[] value = digest.digest();
+        StringBuilder hex = new StringBuilder();
+        for (byte b : value) hex.append(String.format("%02x", b & 0xff));
+        File stamp = new File(cache, ".dependencies-sha256");
+        if (stamp.isFile() && hex.toString().equals(new String(Files.readAllBytes(stamp.toPath()), StandardCharsets.UTF_8))) return;
+        deleteTree(cache);
+        Files.createDirectories(cache.toPath());
+        try {
+            setup.run();
+            Files.write(stamp.toPath(), hex.toString().getBytes(StandardCharsets.UTF_8));
+        } catch (Exception failed) {
+            Files.deleteIfExists(stamp.toPath());
+            throw failed;
+        }
+    }
+    /** Run a metadata tool without a shell (for instance pkg-config). */
+    static String output(File directory, List<String> command, int seconds) throws IOException, InterruptedException {
+        Path result = Files.createTempFile("tranforlanguage-tool-", ".log");
+        try {
+            Process process = new ProcessBuilder(command).directory(directory)
+                .redirectErrorStream(true).redirectOutput(result.toFile()).start();
+            try {
+                if (!process.waitFor(seconds, TimeUnit.SECONDS)) throw new IOException("Tool timed out: " + command.get(0));
+                String value = new String(Files.readAllBytes(result), StandardCharsets.UTF_8).trim();
+                if (process.exitValue() != 0) throw new IOException(command.get(0) + " failed: " + value);
+                return value;
+            } finally { if (process.isAlive()) process.destroyForcibly(); }
+        } finally { Files.deleteIfExists(result); }
+    }
+    /** Parse the shell-style quoting emitted by pkg-config (never invoke a shell). */
+    static List<String> flags(String value) throws IOException {
+        List<String> args = new java.util.ArrayList<>();
+        StringBuilder part = new StringBuilder();
+        char quote = 0; boolean escape = false; boolean started = false;
+        for (int i = 0; i < value.length(); i++) {
+            char ch = value.charAt(i);
+            if (escape) { part.append(ch); escape = false; started = true; }
+            else if (ch == '\\' && quote != '\'') { escape = true; started = true; }
+            else if (quote != 0) {
+                if (ch == quote) quote = 0;
+                else part.append(ch);
+            } else if (ch == '\'' || ch == '"') { quote = ch; started = true; }
+            else if (Character.isWhitespace(ch)) {
+                if (started) { args.add(part.toString()); part.setLength(0); started = false; }
+            } else { part.append(ch); started = true; }
+        }
+        if (escape || quote != 0) throw new IOException("Malformed tool flags");
+        if (started) args.add(part.toString());
+        return args;
     }
     static void build(File directory, List<String> command, int seconds) throws IOException, InterruptedException {
         build(directory, directory, command, java.util.Collections.<String, String>emptyMap(), seconds);
