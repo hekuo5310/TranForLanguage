@@ -1,6 +1,9 @@
 // Shared compilation inputs; all game references are compiled by the loader toolchain.
 version = new groovy.xml.XmlSlurper().parse(file('../../pom.xml')).version.text()
 group = 'com.github.tranforlanguage'
+// Oldest Fabric Loader the mod declares at runtime; builds still compile against loader_version.
+// The mod only needs ModInitializer, FabricLoader.getGameDir() and Mixin 0.8 @Inject.
+def fabricLoaderMinimum = '0.17.0'
 def mc = minecraft_version
 boolean forgeBus7 = project.name == 'forge' && mc.startsWith('1.21.') && (mc.split('\\.')[2] as int) >= 6
 boolean modernPermissions = mc.startsWith('26.') || mc == '1.21.11'
@@ -93,7 +96,8 @@ java.toolchain.languageVersion = JavaLanguageVersion.of(java_version as int)
 tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8' }
 base.archivesName = "tranforlanguage-${project.name}-${minecraft_version}"
 processResources {
-    def properties = [version: project.version, minecraft_version: minecraft_version, loader_version: loader_version, java_version: java_version]
+    def properties = [version: project.version, minecraft_version: minecraft_version, loader_version: loader_version, java_version: java_version,
+        fabric_loader_minimum: fabricLoaderMinimum]
     inputs.properties properties
     filesMatching(['fabric.mod.json', 'META-INF/*.toml']) { expand properties }
     from('../../core/src/main/resources')

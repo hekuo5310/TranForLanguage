@@ -6,7 +6,7 @@
   "description": "Language-neutral program bridge for Minecraft servers",
   "environment": "server",
   "entrypoints": {"main": ["com.github.tranforlanguage.fabric.TranForLanguageFabric"]},
-  "depends": {"fabricloader": ">=${loader_version}", "fabric-api": "*", "minecraft": "${minecraft_version}", "java": ">=${java_version}"},
+  "depends": {"fabricloader": ">=${fabric_loader_minimum}", "fabric-api": "*", "minecraft": "${minecraft_version}", "java": ">=${java_version}"},
   "mixins": ["tranforlanguage.mixins.json"],
   "license": "Apache-2.0"
 }
