@@ -54,6 +54,7 @@ with zipfile.ZipFile(files[0]) as jar:
         if loader == 'fabric':
             descriptor = json.loads(jar.read('fabric.mod.json'))
             assert descriptor['depends']['minecraft'] == minecraft
+            assert descriptor['depends']['fabricloader'] == '>=0.17.0', descriptor['depends']['fabricloader']
             assert descriptor['version'] == project_version
             assert descriptor['name'] == 'TranForLanguage'
             assert descriptor['environment'] == 'server'
