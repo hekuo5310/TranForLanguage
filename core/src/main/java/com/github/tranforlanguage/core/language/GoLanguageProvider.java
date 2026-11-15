@@ -37,7 +37,8 @@ public final class GoLanguageProvider implements LanguageProvider {
         if (userMod.isFile()) {
             String json = ProgramFiles.capture(directory, Arrays.asList(go, "mod", "edit", "-json"), 30, 1048576);
             JsonObject details = new Gson().fromJson(json, JsonObject.class);
-            JsonArray replacements = details.getAsJsonArray("Replace");
+            JsonArray replacements = details.has("Replace") && details.get("Replace").isJsonArray()
+                ? details.getAsJsonArray("Replace") : null;
             if (replacements != null) for (JsonElement element : replacements) {
                 JsonObject replacement = element.getAsJsonObject();
                 JsonObject old = replacement.getAsJsonObject("Old");
