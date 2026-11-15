@@ -22,15 +22,26 @@ public final class GoLanguageProvider implements LanguageProvider {
         ProgramFiles.deleteTree(new File(project, "src"));
         File src = new File(project, "src"); Files.createDirectories(src.toPath());
         for (File source : sources) Files.copy(source.toPath(), new File(src, source.getName()).toPath());
-        String mod = "module tranforlanguage-program\n\ngo 1.21\n\nrequire tranforlanguage v0.0.0\n\nreplace tranforlanguage => "
-            + new Gson().toJson(sdk.getAbsolutePath()) + "\n";
-        Files.write(new File(src, "go.mod").toPath(), mod.getBytes(StandardCharsets.UTF_8));
+        File userMod = new File(directory, "go.mod");
+        File userSum = new File(directory, "go.sum");
+        if (userMod.isFile()) {
+            Files.copy(userMod.toPath(), new File(src, "go.mod").toPath(), StandardCopyOption.REPLACE_EXISTING);
+            if (userSum.isFile()) Files.copy(userSum.toPath(), new File(src, "go.sum").toPath(), StandardCopyOption.REPLACE_EXISTING);
+        } else {
+            String mod = "module tranforlanguage-program\\n\\ngo 1.21\\n";
+            Files.write(new File(src, "go.mod").toPath(), mod.getBytes(StandardCharsets.UTF_8));
+        }
+        String go = System.getProperty("tranforlanguage.go", "go");
+        // Amend only the managed copy; never modify the plugin author's go.mod.
+        ProgramFiles.build(directory, src, Arrays.asList(go, "mod", "edit",
+            "-require=tranforlanguage@v0.0.0",
+            "-replace=tranforlanguage=" + sdk.getAbsolutePath()), Collections.emptyMap(), 30);
         boolean windows = System.getProperty("os.name").toLowerCase(Locale.ROOT).contains("win");
         File executable = new File(project, windows ? "tranforlanguage_program.exe" : "tranforlanguage_program");
         Files.deleteIfExists(executable.toPath());
         Map<String, String> environment = new HashMap<>();
         environment.put("GOWORK", "off"); environment.put("GOFLAGS", "-mod=mod"); environment.put("CGO_ENABLED", "0");
-        ProgramFiles.build(directory, src, Arrays.asList(System.getProperty("tranforlanguage.go", "go"), "build",
+        ProgramFiles.build(directory, src, Arrays.asList(go, "build",
             "-o", executable.getAbsolutePath(), "."), environment, 300);
         if (!executable.isFile()) throw new IOException("Go did not produce the program; see compile.log");
         logger.info("Go compilation complete: " + sources.length + " source(s)");
