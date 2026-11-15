@@ -10,7 +10,7 @@ import java.util.logging.Logger;
 public final class CppLanguageProvider implements LanguageProvider {
     public String id() { return "cpp"; }
     public LaunchCommand prepare(File directory, JsonObject configuration, Logger logger) {
-        File executable = new CppCompiler(directory, logger).compile(directory);
+        File executable = new CppCompiler(directory, logger).compile(directory, configuration);
         return executable == null ? null : new LaunchCommand(directory, Collections.singletonList(executable.getAbsolutePath()));
     }
 }
