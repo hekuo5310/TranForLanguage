@@ -132,7 +132,13 @@ public class BuiltinLanguagesTest {
         write("localhelper/src/lib.rs", "pub fn hello()-> &'static str { \"local-rust\" }\n");
         write("Cargo.toml", "[package]\nname='plugin'\nversion='0.1.0'\nedition='2021'\n[dependencies]\nlocalhelper={path='localhelper'}\n");
         write("main.rs", "use tranforlanguage::{broadcast,run};\nfn main(){broadcast(localhelper::hello()).unwrap();run(|_|{}).unwrap();}\n");
-        runtime.reload().get(310, TimeUnit.SECONDS);
+        try { runtime.reload().get(310, TimeUnit.SECONDS); }
+        catch (ExecutionException failure) {
+            File log = new File(platform.dir, "compile.log");
+            throw new AssertionError(log.isFile()
+                ? new String(Files.readAllBytes(log.toPath()), StandardCharsets.UTF_8)
+                : "Rust compilation produced no log", failure);
+        }
         receive("local-rust");
     }
     @Test public void rustCompilesWithBundledCrateAndReceivesUnicodeEvent() throws Exception {
