@@ -80,6 +80,19 @@ def generate = tasks.register('generateAdapter') {
         }
     }
 }
+// TOML 1.0+ editing is used by the shared Rust language adapter.
+// The published TomlJ jar bundles its parser runtime, so embed this one artifact
+// in each loader's mod JAR rather than relying on a globally installed library.
+configurations { embeddedToml }
+dependencies {
+    compileOnly 'org.tomlj:tomlj:2.2.0'
+    embeddedToml 'org.tomlj:tomlj:2.2.0'
+}
+tasks.named('jar', Jar) {
+    from({ configurations.embeddedToml.collect { zipTree(it) } }) {
+        exclude 'META-INF/**'
+    }
+}
 sourceSets.main.java.srcDirs '../../core/src/main/java', '../minecraft/src/main/java', '../minecraft/src/main/mixins', layout.buildDirectory.dir('generated/adapter')
 if (project.name == 'fabric') sourceSets.main.java.srcDir 'src/main/mixins'
 def mixinResources = tasks.register('generateMixinResources') {
