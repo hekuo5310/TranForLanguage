@@ -13,12 +13,9 @@
     <!-- Use Spigot's API only. Its internal runtime libraries are supplied by the server;
          some historical snapshot POMs point to unavailable transitive versions. -->
     <dependency><groupId>org.spigotmc</groupId><artifactId>spigot-api</artifactId><version>${spigot.version}</version><scope>provided</scope>
-      <exclusions>
-        <exclusion><groupId>net.md-5</groupId><artifactId>bungeecord-chat</artifactId></exclusion>
-        <exclusion><groupId>com.google.guava</groupId><artifactId>guava</artifactId></exclusion>
-        <exclusion><groupId>com.google.code.gson</groupId><artifactId>gson</artifactId></exclusion>
-        <exclusion><groupId>org.yaml</groupId><artifactId>snakeyaml</artifactId></exclusion>
-      </exclusions>
+      <!-- Exclude every transitive library: the server provides them at runtime, and resolving the
+           historical versions of 68 API snapshots in parallel trips Maven Central's rate limit. -->
+      <exclusions><exclusion><groupId>*</groupId><artifactId>*</artifactId></exclusion></exclusions>
     </dependency>
     <dependency><groupId>com.google.code.gson</groupId><artifactId>gson</artifactId><version>2.10.1</version></dependency>
     <!-- Structural TOML editing for managed Rust Cargo manifests (bundles its parser runtime). -->
