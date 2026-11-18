@@ -13,7 +13,8 @@ int main() {
         else if (name == "Missing" && mine) {
             try { tranforlanguage::call("nobody", "echo"); }
             catch (const tranforlanguage::CallError& error) { broadcast(("missing " + self + ":" + error.what()).c_str()); }
-        } else if (name == "Announce" && mine) tranforlanguage::publish("greet", {"hi"});
+        } else if (name == "Server" && mine) broadcast(("server " + self + "=" + tranforlanguage::server("ping", {self})).c_str());
+        else if (name == "Announce" && mine) tranforlanguage::publish("greet", {"hi"});
         else if (name == "message" && e.topic && std::strcmp(e.topic, "greet") == 0)
             broadcast(("greet " + self + " from " + e.from + ": " + args.at(0)).c_str());
     });

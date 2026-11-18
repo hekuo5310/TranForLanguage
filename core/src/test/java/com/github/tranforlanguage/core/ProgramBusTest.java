@@ -83,6 +83,49 @@ public class ProgramBusTest {
         bus.receive(a, json("{\"action\":\"call\",\"target\":\"\",\"method\":\"m\",\"id\":\"9\"}"));
         assertTrue(a.next().get("error").getAsString().contains("non-empty"));
     }
+    @Test public void serverTargetIsAnsweredByThePlatform() throws Exception {
+        bus.close();
+        List<Runnable> serverThread = new CopyOnWriteArrayList<>();
+        List<String> ran = new CopyOnWriteArrayList<>();
+        bus = new ProgramBus(new ProgramBus.Directory() {
+            public ProgramBus.Endpoint find(String id) { return live.get(id); }
+            public Collection<ProgramBus.Endpoint> subscribers(ProgramBus.Endpoint source) { return Collections.emptyList(); }
+        }, (source, method, args, call) -> serverThread.add(() -> {
+            if (!call.begin()) { ran.add("skipped " + method); return; }
+            ran.add(method);
+            if (method.equals("slow")) {
+                try { Thread.sleep(400); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+                call.done("done", null); return;
+            }
+            if (method.equals("echo")) call.done(String.join("|", args), null); else if (!method.equals("hang")) call.done(null, "bad " + method);
+        }), Logger.getLogger("bus-test"), 200);
+        Fake a = program("a");
+        bus.receive(a, json("{\"action\":\"call\",\"target\":\"@server\",\"method\":\"echo\",\"args\":[\"x\",1],\"id\":\"s1\"}"));
+        assertTrue("Answered only when the server thread runs it", a.lines.isEmpty());
+        serverThread.remove(0).run();
+        JsonObject ok = a.next();
+        assertTrue(ok.get("ok").getAsBoolean()); assertEquals("x|1", ok.get("result").getAsString());
+        assertEquals("@server", ok.get("from").getAsString()); assertEquals("s1", ok.get("id").getAsString());
+        bus.receive(a, json("{\"action\":\"call\",\"target\":\"@server\",\"method\":\"nope\",\"id\":\"s2\"}"));
+        serverThread.remove(0).run();
+        assertEquals("bad nope", a.next().get("error").getAsString());
+        bus.receive(a, json("{\"action\":\"call\",\"target\":\"@server\",\"method\":\"hang\",\"id\":\"s3\"}"));
+        assertTrue(a.next().get("error").getAsString().contains("timed out"));
+        serverThread.remove(0).run();
+        assertEquals("A call that timed out while queued never runs", "skipped hang", ran.get(ran.size() - 1));
+        bus.receive(a, json("{\"action\":\"call\",\"target\":\"@server\",\"method\":\"slow\",\"id\":\"s5\"}"));
+        serverThread.remove(0).run(); // claims the call, then takes longer than the 200 ms timeout
+        JsonObject slow = a.next();
+        assertTrue("A running call is not timed out under it", slow.get("ok").getAsBoolean());
+        assertEquals("done", slow.get("result").getAsString());
+        bus.receive(a, json("{\"action\":\"call\",\"target\":\"@server\",\"method\":\"echo\"}"));
+        serverThread.remove(serverThread.size() - 1).run();
+        assertTrue("Notifications get no reply", a.lines.poll(300, TimeUnit.MILLISECONDS) == null);
+        assertEquals(0, bus.pendingCalls());
+        bus.close(); bus = bus(30000);
+        bus.receive(a, json("{\"action\":\"call\",\"target\":\"@server\",\"method\":\"echo\",\"id\":\"s4\"}"));
+        assertTrue(a.next().get("error").getAsString().contains("not available"));
+    }
     @Test public void closingFailsPendingCalls() throws Exception {
         Fake a = program("a"), b = program("b");
         bus.receive(a, json("{\"action\":\"call\",\"target\":\"b\",\"method\":\"m\",\"id\":\"1\"}"));

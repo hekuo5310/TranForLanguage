@@ -83,6 +83,9 @@ public final class TranForLanguage {
         return result == null ? "" : result.toString();
     }
 
+    /** Calls a game action on the server, e.g. {@code server("teleport", "Alex", 0, 64, 0)}. */
+    public static String server(String method, Object... args) { return call("@server", method, args); }
+
     public static void notify(String target, String method, Object... args) {
         send("call", "target", target, "method", method, "args", strings(args));
     }

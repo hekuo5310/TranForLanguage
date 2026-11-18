@@ -1,6 +1,6 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
-  <groupId>com.github.tranforlanguage</groupId><artifactId>tranforlanguage-spigot</artifactId><version>2.2.2</version>
+  <groupId>com.github.tranforlanguage</groupId><artifactId>tranforlanguage-spigot</artifactId><version>2.2.3</version>
   <name>TranForLanguage</name>
   <description>Run C, C++, Python, Rust, JavaScript, Go, Ruby, PHP and Java programs on Minecraft servers and let them call each other.</description>
   <properties>
@@ -13,12 +13,9 @@
     <!-- Use Spigot's API only. Its internal runtime libraries are supplied by the server;
          some historical snapshot POMs point to unavailable transitive versions. -->
     <dependency><groupId>org.spigotmc</groupId><artifactId>spigot-api</artifactId><version>${spigot.version}</version><scope>provided</scope>
-      <exclusions>
-        <exclusion><groupId>net.md-5</groupId><artifactId>bungeecord-chat</artifactId></exclusion>
-        <exclusion><groupId>com.google.guava</groupId><artifactId>guava</artifactId></exclusion>
-        <exclusion><groupId>com.google.code.gson</groupId><artifactId>gson</artifactId></exclusion>
-        <exclusion><groupId>org.yaml</groupId><artifactId>snakeyaml</artifactId></exclusion>
-      </exclusions>
+      <!-- Exclude every transitive library: the server provides them at runtime, and resolving the
+           historical versions of 68 API snapshots in parallel trips Maven Central's rate limit. -->
+      <exclusions><exclusion><groupId>*</groupId><artifactId>*</artifactId></exclusion></exclusions>
     </dependency>
     <dependency><groupId>com.google.code.gson</groupId><artifactId>gson</artifactId><version>2.10.1</version></dependency>
     <!-- Structural TOML editing for managed Rust Cargo manifests (bundles its parser runtime). -->

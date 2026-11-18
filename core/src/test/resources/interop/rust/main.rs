@@ -1,4 +1,4 @@
-use tranforlanguage::{broadcast, call, handle, program_id, publish, run};
+use tranforlanguage::{broadcast, call, handle, program_id, publish, run, server};
 
 fn main() {
     let me = program_id();
@@ -11,6 +11,7 @@ fn main() {
             "Ping" if mine => { broadcast(&format!("{}->{}", me, call(&e.args[1], "echo", &[&me]).unwrap())).unwrap(); }
             "Nested" if mine => { broadcast(&format!("nested {}={}", me, call(&e.args[1], "bounce", &[&me, &me]).unwrap())).unwrap(); }
             "Missing" if mine => { broadcast(&format!("missing {}:{}", me, call("nobody", "echo", &[]).unwrap_err())).unwrap(); }
+            "Server" if mine => { broadcast(&format!("server {}={}", me, server("ping", &[&me]).unwrap())).unwrap(); }
             "Announce" if mine => { publish("greet", &["hi"]).unwrap(); }
             "message" if e.topic.as_deref() == Some("greet") => {
                 broadcast(&format!("greet {} from {}: {}", me, e.from.clone().unwrap_or_default(), e.args[0])).unwrap();

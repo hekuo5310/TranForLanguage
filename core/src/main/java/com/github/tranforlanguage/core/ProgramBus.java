@@ -17,6 +17,8 @@ public final class ProgramBus implements AutoCloseable {
         String id();
         /** Queue a protocol line; false when the session is gone or its queue is full. */
         boolean deliver(String line);
+        /** Whether the session is still the live one for its program (not stopped or reloaded). */
+        default boolean alive() { return true; }
     }
     /** Resolves program IDs to live sessions. */
     public interface Directory {
@@ -24,9 +26,31 @@ public final class ProgramBus implements AutoCloseable {
         /** Live sessions that accept the {@code message} event, excluding {@code source}. */
         Collection<Endpoint> subscribers(Endpoint source);
     }
+    /** Executes {@code @server} calls; {@code call} receives a result or an error message. */
+    public interface Server {
+        /** {@code source} is the calling session; implementations must skip it once it is no longer alive. */
+        void call(Endpoint source, String method, List<String> args, Call call);
+    }
+    /** One {@code @server} call as seen by the platform. */
+    public interface Call {
+        /**
+         * Claims the call right before the action runs. Returns false, and the action must not run, when the
+         * call already ended: it timed out (the timeout error was sent to the caller), the bus closed, or the caller stopped. Once claimed, the call no
+         * longer times out, so an action never runs after its caller was told it failed.
+         */
+        boolean begin();
+        void done(String result, String error);
+    }
+    /** Reserved call target answered by the platform instead of a program. */
+    public static final String SERVER = "@server";
+    private static final Endpoint SERVER_ENDPOINT = new Endpoint() {
+        public String id() { return SERVER; }
+        public boolean deliver(String line) { return false; }
+    };
     static final int MAX_PENDING = 10000;
     private static final Gson gson = new Gson();
     private final Directory directory;
+    private final Server server;
     private final Logger logger;
     private final long timeoutMillis;
     private final AtomicLong ids = new AtomicLong();
@@ -36,11 +60,13 @@ public final class ProgramBus implements AutoCloseable {
     });
     private volatile boolean closed;
 
-    public ProgramBus(Directory directory, Logger logger) {
-        this(directory, logger, Long.getLong("tranforlanguage.call-timeout-ms", 30000L));
+    public ProgramBus(Directory directory, Logger logger) { this(directory, null, logger); }
+    public ProgramBus(Directory directory, Server server, Logger logger) {
+        this(directory, server, logger, Long.getLong("tranforlanguage.call-timeout-ms", 30000L));
     }
-    ProgramBus(Directory directory, Logger logger, long timeoutMillis) {
-        this.directory = directory; this.logger = logger; this.timeoutMillis = Math.max(1, timeoutMillis);
+    ProgramBus(Directory directory, Logger logger, long timeoutMillis) { this(directory, null, logger, timeoutMillis); }
+    ProgramBus(Directory directory, Server server, Logger logger, long timeoutMillis) {
+        this.directory = directory; this.server = server; this.logger = logger; this.timeoutMillis = Math.max(1, timeoutMillis);
     }
 
     /** Handles {@code call}, {@code reply} and {@code publish} actions from {@code source}. */
@@ -62,6 +88,7 @@ public final class ProgramBus implements AutoCloseable {
         }
         JsonArray args = arguments(message);
         if (closed) { fail(source, callerId, target, "program manager closed"); return; }
+        if (SERVER.equals(target)) { serverCall(source, callerId, method, args); return; }
         Endpoint destination = directory.find(target);
         if (destination == null) { fail(source, callerId, target, "program is not running: " + target); return; }
         JsonObject line = event("call", args); line.addProperty("from", source.id()); line.addProperty("method", method);
@@ -78,7 +105,42 @@ public final class ProgramBus implements AutoCloseable {
             call.timeout = timer.schedule(() -> complete(routed, null, "call to " + target + "." + method + " timed out after "
                 + timeoutMillis + " ms"), timeoutMillis, TimeUnit.MILLISECONDS);
         } catch (RejectedExecutionException shutdown) { complete(routed, null, "program manager closed"); return; }
+        if (closed) { complete(routed, null, "program manager closed"); return; }
         if (!destination.deliver(gson.toJson(line))) complete(routed, null, "program " + target + " cannot accept calls (stopped or queue full)");
+    }
+
+    private void serverCall(Endpoint source, JsonElement callerId, String method, JsonArray args) {
+        if (server == null) { fail(source, callerId, SERVER, "server calls are not available on this platform"); return; }
+        List<String> values = new ArrayList<>();
+        for (JsonElement arg : args) values.add(arg.getAsString());
+        if (callerId == null) {
+            server.call(source, method, Collections.unmodifiableList(values), new Call() {
+                public boolean begin() { return !closed; }
+                public void done(String result, String error) {
+                    if (error != null) logger.warning("Server notification " + method + " from " + source.id() + " failed: " + error);
+                }
+            });
+            return;
+        }
+        if (pending.size() >= MAX_PENDING) { fail(source, callerId, SERVER, "too many pending calls"); return; }
+        long routed = ids.incrementAndGet();
+        Pending call = new Pending(source, callerId, SERVER_ENDPOINT);
+        pending.put(routed, call);
+        try {
+            // The timeout and the server thread race for the claim; whichever wins decides the outcome.
+            call.timeout = timer.schedule(() -> {
+                if (call.claim()) complete(routed, null, "server call " + method + " timed out after " + timeoutMillis + " ms");
+            }, timeoutMillis, TimeUnit.MILLISECONDS);
+        } catch (RejectedExecutionException shutdown) { complete(routed, null, "program manager closed"); return; }
+        // close() may have taken its snapshot of pending calls before this one was registered.
+        if (closed) { complete(routed, null, "program manager closed"); return; }
+        try {
+            server.call(source, method, Collections.unmodifiableList(values), new Call() {
+                public boolean begin() { return call.claim() && pending.get(routed) == call; }
+                public void done(String result, String error) { complete(routed, result, error); }
+            });
+        }
+        catch (RuntimeException failure) { complete(routed, null, String.valueOf(failure.getMessage())); }
     }
 
     private void reply(Endpoint source, JsonObject message) {
@@ -126,11 +188,13 @@ public final class ProgramBus implements AutoCloseable {
         send(source, callerId, target == null ? "" : target, null, error);
     }
 
-    private static void send(Endpoint caller, JsonElement callerId, String from, String result, String error) {
+    private void send(Endpoint caller, JsonElement callerId, String from, String result, String error) {
         JsonObject line = event("reply", new JsonArray());
         line.add("id", callerId); line.addProperty("from", from); line.addProperty("ok", error == null);
         if (error == null) line.addProperty("result", result); else line.addProperty("error", error);
-        caller.deliver(gson.toJson(line));
+        // A full input queue (or a caller that just stopped) drops the reply; make that visible.
+        if (!caller.deliver(gson.toJson(line)) && caller.alive())
+            logger.warning("Dropped reply from " + from + " to " + caller.id() + ": input queue full");
     }
 
     private static JsonObject event(String name, JsonArray args) {
@@ -161,6 +225,9 @@ public final class ProgramBus implements AutoCloseable {
     private static final class Pending {
         final Endpoint caller, target; final JsonElement callerId;
         volatile ScheduledFuture<?> timeout;
+        private final java.util.concurrent.atomic.AtomicBoolean claimed = new java.util.concurrent.atomic.AtomicBoolean();
+        /** Server calls only: true for exactly one of the timeout and the server thread. */
+        boolean claim() { return claimed.compareAndSet(false, true); }
         Pending(Endpoint caller, JsonElement callerId, Endpoint target) { this.caller = caller; this.callerId = callerId; this.target = target; }
         void cancelTimeout() { ScheduledFuture<?> t = timeout; if (t != null) t.cancel(false); }
     }

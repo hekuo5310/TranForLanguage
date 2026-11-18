@@ -49,6 +49,8 @@ function call(target, method, ...args) {
     send('call', { target: String(target), method: String(method), args: strings(args), id });
   });
 }
+/** Call a game action on the server, e.g. await server('teleport', 'Alex', 0, 64, 0). */
+const server = (method, ...args) => call('@server', method, ...args);
 const notify = (target, method, ...args) => send('call', { target: String(target), method: String(method), args: strings(args) });
 const publish = (topic, ...args) => send('publish', { topic: String(topic), args: strings(args) });
 
@@ -112,5 +114,5 @@ function run() { start(); }
 
 module.exports = {
   CallError, programId, broadcast, sendMessage, sendMsg: sendMessage, console: log, log, dispatchCommand,
-  executeCommand: dispatchCommand, on, handle, subscribe, call, notify, publish, run,
+  executeCommand: dispatchCommand, on, handle, subscribe, call, server, notify, publish, run,
 };

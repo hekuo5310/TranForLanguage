@@ -101,6 +101,22 @@ public class ProgramManagerTest {
             try { manager.reload(); fail(); } catch (IllegalStateException expected) {}
         } finally { if (previous == null) System.clearProperty("tranforlanguage.cpp.compiler"); else System.setProperty("tranforlanguage.cpp.compiler", previous); }
     }
+    @Test public void serverCallsRunOnServerThreadAndReportPlatformErrors() throws Exception {
+        write("probe/main.py", "from tranforlanguage import server,broadcast,CallError\nbroadcast(server('ping','a','b'))\n"
+            + "try:\n server('explode')\nexcept CallError as e:\n broadcast('error:'+str(e))\n");
+        manager.reload().get(10, TimeUnit.SECONDS);
+        await(() -> platform.messages.size() == 2);
+        assertEquals(Arrays.asList("pong:a,b", "error:no such thing: explode"), platform.messages);
+    }
+    @Test public void serverCallsQueuedByAStoppedProgramNeverRun() throws Exception {
+        write("stale/main.py", "from tranforlanguage import notify,run\nnotify('@server','ping','late')\nrun()\n");
+        manager.reload().get(10, TimeUnit.SECONDS);
+        Runnable queued = platform.tasks.poll(5, TimeUnit.SECONDS);
+        assertNotNull("The server call must be queued for the server thread", queued);
+        manager.stop("stale").get(5, TimeUnit.SECONDS);
+        queued.run();
+        assertEquals("A stopped program's queued server call must not reach the platform", 0, platform.serverCalls.get());
+    }
     @Test public void emptyDirectoriesDoNotCreateProgramsAndUnknownIdsFail() throws Exception {
         write("empty/readme.txt", "nothing to run");
         write(".hidden/main.py", "raise RuntimeError('must not run')");
@@ -171,9 +187,17 @@ public class ProgramManagerTest {
         RecordingPlatform(File dir) { this(dir, Logger.getLogger("manager-test."+UUID.randomUUID())); }
         RecordingPlatform(File dir, Logger log) { this.dir = dir; this.log = log; }
         public File directory() { return dir; } public Logger logger() { return log; }
-        public void execute(Runnable action) { tasks.add(action); }
+        public void execute(Runnable action) { tasks.add(() -> { running.set(true); try { action.run(); } finally { running.set(false); } }); }
         public void broadcast(String message) { messages.add(message); }
         public void sendMessage(String player, String message) { messages.add(player+":"+message); }
         public void dispatchCommand(String command) { messages.add(command); }
+        @Override public String serverCall(String method, java.util.List<String> args) {
+            assertTrue("@server calls must run through execute()", running.get());
+            serverCalls.incrementAndGet();
+            if (method.equals("ping")) return "pong:" + String.join(",", args);
+            throw new IllegalArgumentException("no such thing: " + method);
+        }
+        final java.util.concurrent.atomic.AtomicBoolean running = new java.util.concurrent.atomic.AtomicBoolean();
+        final java.util.concurrent.atomic.AtomicInteger serverCalls = new java.util.concurrent.atomic.AtomicInteger();
     }
 }

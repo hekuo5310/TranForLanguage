@@ -34,7 +34,21 @@ public final class ProgramManager implements AutoCloseable {
                 }
                 return result;
             }
-        }, platform.logger());
+        }, (source, method, args, call) -> platform.execute(() -> {
+            // Game API access happens here, on the server thread; failures become error replies.
+            // A program stopped or reloaded after queueing the call must not change the world any more.
+            if (!source.alive()) { call.done(null, "program " + source.id() + " stopped before the server call ran"); return; }
+            // A call that already timed out was answered with an error; running it now could duplicate a retry.
+            if (!call.begin()) return;
+            String result;
+            try { result = platform.serverCall(method, args); }
+            catch (Exception failure) {
+                String message = failure.getMessage();
+                call.done(null, message == null || message.isEmpty() ? failure.toString() : message);
+                return;
+            }
+            call.done(result == null ? "" : result, null);
+        }), platform.logger());
     }
     public synchronized CompletableFuture<Void> reload() { return submit(() -> {
         Map<String, File> discovered = discover();

@@ -30,6 +30,7 @@ import com.github.tranforlanguage.utils.Messages;
 public class ProcessManager implements Listener {
     private final TranForLanguage plugin;
     private final ProgramManager runtime;
+    private final SpigotServerApi api = new SpigotServerApi();
     private boolean registered;
     private static final long MOVE_INTERVAL = java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(
         Math.max(0, Long.getLong("tranforlanguage.move-interval-ms", 100L)));
@@ -48,6 +49,7 @@ public class ProcessManager implements Listener {
                 if (player != null) player.sendMessage(Messages.format(message));
             }
             public void dispatchCommand(String command) { Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command); }
+            public String serverCall(String method, java.util.List<String> args) throws Exception { return api.call(method, args); }
         });
     }
     public void start() {
@@ -77,9 +79,18 @@ public class ProcessManager implements Listener {
                     sendEvent("PlayerAdvancement", ((org.bukkit.event.player.PlayerEvent) event).getPlayer().getName(), String.valueOf(key));
                 } catch (ReflectiveOperationException e) { plugin.getLogger().warning(e.toString()); }
             });
+            // 1.9 / 1.13 added gliding and swimming toggles; read them reflectively like advancements.
+            optional("org.bukkit.event.entity.EntityToggleGlideEvent", event -> toggle(event, "PlayerToggleGlide", "isGliding"));
+            optional("org.bukkit.event.entity.EntityToggleSwimEvent", event -> toggle(event, "PlayerToggleSwim", "isSwimming"));
             registered = true;
         }
         runtime.reload().whenComplete((v, error) -> { if (error != null) plugin.getLogger().severe("程序启动失败: " + error); });
+    }
+    private void toggle(Event event, String name, String state) {
+        try {
+            Object entity = event.getClass().getMethod("getEntity").invoke(event);
+            if (entity instanceof Player) sendEvent(name, ((Player) entity).getName(), String.valueOf(event.getClass().getMethod(state).invoke(event)));
+        } catch (ReflectiveOperationException e) { plugin.getLogger().warning(e.toString()); }
     }
     @SuppressWarnings("unchecked")
     private boolean optional(String name, java.util.function.Consumer<Event> handler) {
@@ -277,5 +288,35 @@ public class ProcessManager implements Listener {
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onItemConsume(PlayerItemConsumeEvent event) {
         sendEvent("PlayerItemConsume", event.getPlayer().getName(), event.getItem().getType().name());
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onItemHeld(PlayerItemHeldEvent event) {
+        sendEvent("PlayerItemHeld", event.getPlayer().getName(), String.valueOf(event.getPreviousSlot()), String.valueOf(event.getNewSlot()));
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onFoodLevelChange(org.bukkit.event.entity.FoodLevelChangeEvent event) {
+        if (!(event.getEntity() instanceof Player)) return;
+        Player player = (Player) event.getEntity();
+        if (player.getFoodLevel() != event.getFoodLevel())
+            sendEvent("PlayerFoodLevelChange", player.getName(), String.valueOf(player.getFoodLevel()), String.valueOf(event.getFoodLevel()));
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onVehicleEnter(org.bukkit.event.vehicle.VehicleEnterEvent event) {
+        if (event.getEntered() instanceof Player)
+            sendEvent("PlayerVehicleEnter", ((Player) event.getEntered()).getName(), event.getVehicle().getType().name());
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onVehicleExit(org.bukkit.event.vehicle.VehicleExitEvent event) {
+        if (event.getExited() instanceof Player)
+            sendEvent("PlayerVehicleExit", ((Player) event.getExited()).getName(), event.getVehicle().getType().name());
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onCraftItem(org.bukkit.event.inventory.CraftItemEvent event) {
+        sendEvent("PlayerCraftItem", event.getWhoClicked().getName(), event.getRecipe().getResult().getType().name());
     }
 }

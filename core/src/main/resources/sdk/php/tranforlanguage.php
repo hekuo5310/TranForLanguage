@@ -63,6 +63,12 @@ final class TranForLanguage
         return (string) ($reply['result'] ?? '');
     }
 
+    /** Call a game action on the server, e.g. TranForLanguage::server('teleport', 'Alex', 0, 64, 0). */
+    public static function server(string $method, ...$args): string
+    {
+        return self::call('@server', $method, ...$args);
+    }
+
     public static function notify(string $target, string $method, ...$args): void
     {
         self::send('call', ['target' => $target, 'method' => $method, 'args' => self::strings($args)]);

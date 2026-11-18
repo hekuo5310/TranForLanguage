@@ -33,6 +33,8 @@ void tranforlanguage_handle(const char *method, tranforlanguage_method_fn fn, vo
 /* Call method on another program and wait. Returns 1 on success, 0 on error.
    *out receives a malloc'd result or error message; release it with free(). */
 int tranforlanguage_call(const char *target, const char *method, int argc, const char *const *args, char **out);
+/* Call a game action on the server ("@server"); same contract as tranforlanguage_call. */
+int tranforlanguage_server(const char *method, int argc, const char *const *args, char **out);
 /* One-way call without a reply. */
 void tranforlanguage_notify(const char *target, const char *method, int argc, const char *const *args);
 /* Send a message event to every other program that accepts "message". */

@@ -1,4 +1,4 @@
-from tranforlanguage import CallError, broadcast, call, handle, on, program_id as me, publish, run, subscribe
+from tranforlanguage import CallError, broadcast, call, handle, on, program_id as me, publish, run, server, subscribe
 
 
 @handle("echo")
@@ -30,6 +30,12 @@ def missing(source):
             call("nobody", "echo")
         except CallError as error:
             broadcast("missing " + me + ":" + str(error))
+
+
+@on("Server")
+def server_call(source):
+    if source == me:
+        broadcast("server " + me + "=" + server("ping", me))
 
 
 @on("Announce")

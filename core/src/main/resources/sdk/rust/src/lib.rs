@@ -114,6 +114,9 @@ pub fn call(target: &str, method: &str, args: &[&str]) -> Result<String, CallErr
     }
 }
 
+/// Call a game action on the server, e.g. `server("teleport", &["Alex", "0", "64", "0"])`.
+pub fn server(method: &str, args: &[&str]) -> Result<String, CallError> { call("@server", method, args) }
+
 /// One-way call; no reply and no waiting.
 pub fn notify(target: &str, method: &str, args: &[&str]) -> io::Result<()> {
     send(json!({"action": "call", "target": target, "method": method, "args": args}))
