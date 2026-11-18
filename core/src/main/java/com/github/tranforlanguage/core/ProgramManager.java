@@ -34,8 +34,10 @@ public final class ProgramManager implements AutoCloseable {
                 }
                 return result;
             }
-        }, (method, args, done) -> platform.execute(() -> {
+        }, (source, method, args, done) -> platform.execute(() -> {
             // Game API access happens here, on the server thread; failures become error replies.
+            // A program stopped or reloaded after queueing the call must not change the world any more.
+            if (!source.alive()) { done.accept(null, "program " + source.id() + " stopped before the server call ran"); return; }
             String result;
             try { result = platform.serverCall(method, args); }
             catch (Exception failure) {

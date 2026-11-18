@@ -62,9 +62,11 @@ public final class MinecraftPlatform implements Platform {
                 return GSON.toJson(info);
             }
             case "teleport": {
-                String name = player(a).getName().getString();
-                String target = name + " " + number(a.decimal(1, "x")) + " " + number(a.decimal(2, "y")) + " " + number(a.decimal(3, "z"));
-                command(a.has(4) ? "execute in " + dimension(a.text(4, "world")) + " run tp " + target : "tp " + target);
+                ServerPlayer p = player(a);
+                String target = p.getName().getString() + " " + number(a.decimal(1, "x")) + " " + number(a.decimal(2, "y")) + " " + number(a.decimal(3, "z"));
+                // Without a world, stay in the player's current dimension: the server command source is in the overworld.
+                String world = a.has(4) ? dimension(a.text(4, "world")) : ServerArgs.dimensionId(p.level().dimension().toString());
+                command("execute in " + world + " run tp " + target);
                 return "";
             }
             case "giveItem": {

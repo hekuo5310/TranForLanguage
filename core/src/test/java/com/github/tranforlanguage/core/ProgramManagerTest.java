@@ -108,6 +108,15 @@ public class ProgramManagerTest {
         await(() -> platform.messages.size() == 2);
         assertEquals(Arrays.asList("pong:a,b", "error:no such thing: explode"), platform.messages);
     }
+    @Test public void serverCallsQueuedByAStoppedProgramNeverRun() throws Exception {
+        write("stale/main.py", "from tranforlanguage import notify,run\nnotify('@server','ping','late')\nrun()\n");
+        manager.reload().get(10, TimeUnit.SECONDS);
+        Runnable queued = platform.tasks.poll(5, TimeUnit.SECONDS);
+        assertNotNull("The server call must be queued for the server thread", queued);
+        manager.stop("stale").get(5, TimeUnit.SECONDS);
+        queued.run();
+        assertEquals("A stopped program's queued server call must not reach the platform", 0, platform.serverCalls.get());
+    }
     @Test public void emptyDirectoriesDoNotCreateProgramsAndUnknownIdsFail() throws Exception {
         write("empty/readme.txt", "nothing to run");
         write(".hidden/main.py", "raise RuntimeError('must not run')");
@@ -184,9 +193,11 @@ public class ProgramManagerTest {
         public void dispatchCommand(String command) { messages.add(command); }
         @Override public String serverCall(String method, java.util.List<String> args) {
             assertTrue("@server calls must run through execute()", running.get());
+            serverCalls.incrementAndGet();
             if (method.equals("ping")) return "pong:" + String.join(",", args);
             throw new IllegalArgumentException("no such thing: " + method);
         }
         final java.util.concurrent.atomic.AtomicBoolean running = new java.util.concurrent.atomic.AtomicBoolean();
+        final java.util.concurrent.atomic.AtomicInteger serverCalls = new java.util.concurrent.atomic.AtomicInteger();
     }
 }

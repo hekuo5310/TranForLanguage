@@ -89,7 +89,7 @@ public class ProgramBusTest {
         bus = new ProgramBus(new ProgramBus.Directory() {
             public ProgramBus.Endpoint find(String id) { return live.get(id); }
             public Collection<ProgramBus.Endpoint> subscribers(ProgramBus.Endpoint source) { return Collections.emptyList(); }
-        }, (method, args, done) -> serverThread.add(() -> {
+        }, (source, method, args, done) -> serverThread.add(() -> {
             if (method.equals("echo")) done.accept(String.join("|", args), null); else if (!method.equals("hang")) done.accept(null, "bad " + method);
         }), Logger.getLogger("bus-test"), 200);
         Fake a = program("a");

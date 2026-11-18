@@ -17,6 +17,8 @@ public final class ProgramBus implements AutoCloseable {
         String id();
         /** Queue a protocol line; false when the session is gone or its queue is full. */
         boolean deliver(String line);
+        /** Whether the session is still the live one for its program (not stopped or reloaded). */
+        default boolean alive() { return true; }
     }
     /** Resolves program IDs to live sessions. */
     public interface Directory {
@@ -26,7 +28,8 @@ public final class ProgramBus implements AutoCloseable {
     }
     /** Executes {@code @server} calls; {@code done} receives a result or an error message. */
     public interface Server {
-        void call(String method, List<String> args, java.util.function.BiConsumer<String, String> done);
+        /** {@code source} is the calling session; implementations must skip it once it is no longer alive. */
+        void call(Endpoint source, String method, List<String> args, java.util.function.BiConsumer<String, String> done);
     }
     /** Reserved call target answered by the platform instead of a program. */
     public static final String SERVER = "@server";
@@ -92,6 +95,7 @@ public final class ProgramBus implements AutoCloseable {
             call.timeout = timer.schedule(() -> complete(routed, null, "call to " + target + "." + method + " timed out after "
                 + timeoutMillis + " ms"), timeoutMillis, TimeUnit.MILLISECONDS);
         } catch (RejectedExecutionException shutdown) { complete(routed, null, "program manager closed"); return; }
+        if (closed) { complete(routed, null, "program manager closed"); return; }
         if (!destination.deliver(gson.toJson(line))) complete(routed, null, "program " + target + " cannot accept calls (stopped or queue full)");
     }
 
@@ -100,7 +104,7 @@ public final class ProgramBus implements AutoCloseable {
         List<String> values = new ArrayList<>();
         for (JsonElement arg : args) values.add(arg.getAsString());
         if (callerId == null) {
-            server.call(method, Collections.unmodifiableList(values), (result, error) -> {
+            server.call(source, method, Collections.unmodifiableList(values), (result, error) -> {
                 if (error != null) logger.warning("Server notification " + method + " from " + source.id() + " failed: " + error);
             });
             return;
@@ -113,7 +117,9 @@ public final class ProgramBus implements AutoCloseable {
             call.timeout = timer.schedule(() -> complete(routed, null, "server call " + method + " timed out after "
                 + timeoutMillis + " ms"), timeoutMillis, TimeUnit.MILLISECONDS);
         } catch (RejectedExecutionException shutdown) { complete(routed, null, "program manager closed"); return; }
-        try { server.call(method, Collections.unmodifiableList(values), (result, error) -> complete(routed, result, error)); }
+        // close() may have taken its snapshot of pending calls before this one was registered.
+        if (closed) { complete(routed, null, "program manager closed"); return; }
+        try { server.call(source, method, Collections.unmodifiableList(values), (result, error) -> complete(routed, result, error)); }
         catch (RuntimeException failure) { complete(routed, null, String.valueOf(failure.getMessage())); }
     }
 

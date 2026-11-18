@@ -124,8 +124,9 @@ public final class ProgramRuntime implements AutoCloseable {
         final ProgramBus.Endpoint endpoint = new ProgramBus.Endpoint() {
             public String id() { return id; }
             public boolean deliver(String line) {
-                return session == Session.this && !stopped && process.isAlive() && queue.offer(line);
+                return alive() && queue.offer(line);
             }
+            @Override public boolean alive() { return session == Session.this && !stopped && process.isAlive(); }
             @Override public String toString() { return id; }
         };
         Session(Process process, long generation) {
