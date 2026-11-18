@@ -1,0 +1,19 @@
+// CI only: fetch Maven Central artifacts from Google's official Central mirror. The ~130 parallel jobs
+// share GitHub runner IPs, and repo.maven.apache.org answers them with 429 Too Many Requests.
+// Covers repositories declared by the build and those added later by Loom / ForgeGradle / ModDevGradle.
+def mirror = 'https://maven-central.storage-download.googleapis.com/maven2/'
+def central = ['https://repo.maven.apache.org/maven2', 'https://repo1.maven.org/maven2']
+def redirect = { RepositoryHandler repositories ->
+    repositories.withType(MavenArtifactRepository).configureEach { repository ->
+        if (central.any { repository.url.toString().startsWith(it) }) repository.url = mirror
+    }
+}
+beforeSettings { settings ->
+    redirect(settings.buildscript.repositories)
+    redirect(settings.pluginManagement.repositories)
+}
+settingsEvaluated { settings -> redirect(settings.dependencyResolutionManagement.repositories) }
+allprojects { project ->
+    redirect(project.buildscript.repositories)
+    redirect(project.repositories)
+}
