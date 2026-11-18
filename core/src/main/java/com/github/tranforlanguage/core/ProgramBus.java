@@ -35,7 +35,7 @@ public final class ProgramBus implements AutoCloseable {
     public interface Call {
         /**
          * Claims the call right before the action runs. Returns false, and the action must not run, when the
-         * call already ended: it timed out (the caller got the timeout error), the bus closed, or the caller stopped. Once claimed, the call no
+         * call already ended: it timed out (the timeout error was sent to the caller), the bus closed, or the caller stopped. Once claimed, the call no
          * longer times out, so an action never runs after its caller was told it failed.
          */
         boolean begin();
@@ -188,11 +188,13 @@ public final class ProgramBus implements AutoCloseable {
         send(source, callerId, target == null ? "" : target, null, error);
     }
 
-    private static void send(Endpoint caller, JsonElement callerId, String from, String result, String error) {
+    private void send(Endpoint caller, JsonElement callerId, String from, String result, String error) {
         JsonObject line = event("reply", new JsonArray());
         line.add("id", callerId); line.addProperty("from", from); line.addProperty("ok", error == null);
         if (error == null) line.addProperty("result", result); else line.addProperty("error", error);
-        caller.deliver(gson.toJson(line));
+        // A full input queue (or a caller that just stopped) drops the reply; make that visible.
+        if (!caller.deliver(gson.toJson(line)) && caller.alive())
+            logger.warning("Dropped reply from " + from + " to " + caller.id() + ": input queue full");
     }
 
     private static JsonObject event(String name, JsonArray args) {
