@@ -35,7 +35,7 @@ public final class ProgramBus implements AutoCloseable {
     public interface Call {
         /**
          * Claims the call right before the action runs. Returns false, and the action must not run, when the
-         * call already timed out or was cancelled; the caller has then been answered. Once claimed, the call no
+         * call already ended: it timed out (the caller got the timeout error), the bus closed, or the caller stopped. Once claimed, the call no
          * longer times out, so an action never runs after its caller was told it failed.
          */
         boolean begin();
