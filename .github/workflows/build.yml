@@ -88,7 +88,9 @@ jobs:
           gradle-version: ${{ matrix.gradle }}
       - run: python3 scripts/configure-build.py '${{ matrix.loader }}' '${{ matrix.minecraft }}'
       - name: Build remapped or unobfuscated mod for the exact game target
-        run: gradle -p adapters/${{ matrix.loader }} --init-script "$PWD/.github/central-mirror.gradle" --no-daemon -Dorg.gradle.internal.repository.max.retries=8 -Dorg.gradle.internal.repository.initial.backoff=5000 build -Dorg.gradle.java.installations.paths="$JAVA_HOME_17_X64,$JAVA_HOME_21_X64,$JAVA_HOME_25_X64"
+        env:
+          LOADER: ${{ matrix.loader }}
+        run: gradle -p "adapters/$LOADER" --init-script "$PWD/.github/central-mirror.gradle" --no-daemon -Dorg.gradle.internal.repository.max.tentatives=9 -Dorg.gradle.internal.repository.initial.backoff=5000 build -Dorg.gradle.java.installations.paths="$JAVA_HOME_17_X64,$JAVA_HOME_21_X64,$JAVA_HOME_25_X64"
       - name: Verify mod descriptor, entrypoint and remapped artifact
         run: python3 scripts/check-artifact.py '${{ matrix.loader }}' '${{ matrix.minecraft }}' '${{ matrix.java }}' 'adapters/${{ matrix.loader }}/build/libs/*.jar'
       - uses: actions/upload-artifact@v4

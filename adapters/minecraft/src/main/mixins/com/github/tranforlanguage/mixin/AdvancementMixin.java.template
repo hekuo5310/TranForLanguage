@@ -12,6 +12,9 @@ abstract class AdvancementMixin {
     @Shadow private ServerPlayer player;
     // One entry per active award call: listeners can award other advancements re-entrantly.
     @Unique private final java.util.ArrayDeque<Boolean> tranforlanguage$wasDone = new java.util.ArrayDeque<>();
+    // Advancements reported during the outermost award call: a listener re-awarding the same advancement
+    // completes it in the inner call, which reports it; the outer call must not report it again.
+    @Unique private final java.util.Set<Object> tranforlanguage$reported = new java.util.HashSet<>();
     @Shadow public abstract AdvancementProgress getOrStartProgress(@ADVANCEMENT@ advancement);
     @Inject(method = "award", at = @At("HEAD"))
     private void tranforlanguage$before(@ADVANCEMENT@ advancement, String criterion, CallbackInfoReturnable<Boolean> cir) {
@@ -20,7 +23,12 @@ abstract class AdvancementMixin {
     @Inject(method = "award", at = @At("RETURN"))
     private void tranforlanguage$after(@ADVANCEMENT@ advancement, String criterion, CallbackInfoReturnable<Boolean> cir) {
         Boolean wasDone = tranforlanguage$wasDone.poll();
-        if (cir.getReturnValueZ() && Boolean.FALSE.equals(wasDone) && getOrStartProgress(advancement).isDone())
-            ModEvents.emit("PlayerAdvancement", player.getName().getString(), @ADVANCEMENT_ID@);
+        try {
+            if (cir.getReturnValueZ() && Boolean.FALSE.equals(wasDone) && getOrStartProgress(advancement).isDone()
+                && tranforlanguage$reported.add(advancement))
+                ModEvents.emit("PlayerAdvancement", player.getName().getString(), @ADVANCEMENT_ID@);
+        } finally {
+            if (tranforlanguage$wasDone.isEmpty()) tranforlanguage$reported.clear();
+        }
     }
 }

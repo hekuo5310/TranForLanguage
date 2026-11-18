@@ -26,10 +26,20 @@ public final class ProgramBus implements AutoCloseable {
         /** Live sessions that accept the {@code message} event, excluding {@code source}. */
         Collection<Endpoint> subscribers(Endpoint source);
     }
-    /** Executes {@code @server} calls; {@code done} receives a result or an error message. */
+    /** Executes {@code @server} calls; {@code call} receives a result or an error message. */
     public interface Server {
         /** {@code source} is the calling session; implementations must skip it once it is no longer alive. */
-        void call(Endpoint source, String method, List<String> args, java.util.function.BiConsumer<String, String> done);
+        void call(Endpoint source, String method, List<String> args, Call call);
+    }
+    /** One {@code @server} call as seen by the platform. */
+    public interface Call {
+        /**
+         * Claims the call right before the action runs. Returns false, and the action must not run, when the
+         * call already timed out or was cancelled; the caller has then been answered. Once claimed, the call no
+         * longer times out, so an action never runs after its caller was told it failed.
+         */
+        boolean begin();
+        void done(String result, String error);
     }
     /** Reserved call target answered by the platform instead of a program. */
     public static final String SERVER = "@server";
@@ -104,8 +114,11 @@ public final class ProgramBus implements AutoCloseable {
         List<String> values = new ArrayList<>();
         for (JsonElement arg : args) values.add(arg.getAsString());
         if (callerId == null) {
-            server.call(source, method, Collections.unmodifiableList(values), (result, error) -> {
-                if (error != null) logger.warning("Server notification " + method + " from " + source.id() + " failed: " + error);
+            server.call(source, method, Collections.unmodifiableList(values), new Call() {
+                public boolean begin() { return !closed; }
+                public void done(String result, String error) {
+                    if (error != null) logger.warning("Server notification " + method + " from " + source.id() + " failed: " + error);
+                }
             });
             return;
         }
@@ -114,12 +127,19 @@ public final class ProgramBus implements AutoCloseable {
         Pending call = new Pending(source, callerId, SERVER_ENDPOINT);
         pending.put(routed, call);
         try {
-            call.timeout = timer.schedule(() -> complete(routed, null, "server call " + method + " timed out after "
-                + timeoutMillis + " ms"), timeoutMillis, TimeUnit.MILLISECONDS);
+            // The timeout and the server thread race for the claim; whichever wins decides the outcome.
+            call.timeout = timer.schedule(() -> {
+                if (call.claim()) complete(routed, null, "server call " + method + " timed out after " + timeoutMillis + " ms");
+            }, timeoutMillis, TimeUnit.MILLISECONDS);
         } catch (RejectedExecutionException shutdown) { complete(routed, null, "program manager closed"); return; }
         // close() may have taken its snapshot of pending calls before this one was registered.
         if (closed) { complete(routed, null, "program manager closed"); return; }
-        try { server.call(source, method, Collections.unmodifiableList(values), (result, error) -> complete(routed, result, error)); }
+        try {
+            server.call(source, method, Collections.unmodifiableList(values), new Call() {
+                public boolean begin() { return call.claim() && pending.get(routed) == call; }
+                public void done(String result, String error) { complete(routed, result, error); }
+            });
+        }
         catch (RuntimeException failure) { complete(routed, null, String.valueOf(failure.getMessage())); }
     }
 
@@ -203,6 +223,9 @@ public final class ProgramBus implements AutoCloseable {
     private static final class Pending {
         final Endpoint caller, target; final JsonElement callerId;
         volatile ScheduledFuture<?> timeout;
+        private final java.util.concurrent.atomic.AtomicBoolean claimed = new java.util.concurrent.atomic.AtomicBoolean();
+        /** Server calls only: true for exactly one of the timeout and the server thread. */
+        boolean claim() { return claimed.compareAndSet(false, true); }
         Pending(Endpoint caller, JsonElement callerId, Endpoint target) { this.caller = caller; this.callerId = callerId; this.target = target; }
         void cancelTimeout() { ScheduledFuture<?> t = timeout; if (t != null) t.cancel(false); }
     }

@@ -86,11 +86,18 @@ public class ProgramBusTest {
     @Test public void serverTargetIsAnsweredByThePlatform() throws Exception {
         bus.close();
         List<Runnable> serverThread = new CopyOnWriteArrayList<>();
+        List<String> ran = new CopyOnWriteArrayList<>();
         bus = new ProgramBus(new ProgramBus.Directory() {
             public ProgramBus.Endpoint find(String id) { return live.get(id); }
             public Collection<ProgramBus.Endpoint> subscribers(ProgramBus.Endpoint source) { return Collections.emptyList(); }
-        }, (source, method, args, done) -> serverThread.add(() -> {
-            if (method.equals("echo")) done.accept(String.join("|", args), null); else if (!method.equals("hang")) done.accept(null, "bad " + method);
+        }, (source, method, args, call) -> serverThread.add(() -> {
+            if (!call.begin()) { ran.add("skipped " + method); return; }
+            ran.add(method);
+            if (method.equals("slow")) {
+                try { Thread.sleep(400); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+                call.done("done", null); return;
+            }
+            if (method.equals("echo")) call.done(String.join("|", args), null); else if (!method.equals("hang")) call.done(null, "bad " + method);
         }), Logger.getLogger("bus-test"), 200);
         Fake a = program("a");
         bus.receive(a, json("{\"action\":\"call\",\"target\":\"@server\",\"method\":\"echo\",\"args\":[\"x\",1],\"id\":\"s1\"}"));
@@ -104,6 +111,13 @@ public class ProgramBusTest {
         assertEquals("bad nope", a.next().get("error").getAsString());
         bus.receive(a, json("{\"action\":\"call\",\"target\":\"@server\",\"method\":\"hang\",\"id\":\"s3\"}"));
         assertTrue(a.next().get("error").getAsString().contains("timed out"));
+        serverThread.remove(0).run();
+        assertEquals("A call that timed out while queued never runs", "skipped hang", ran.get(ran.size() - 1));
+        bus.receive(a, json("{\"action\":\"call\",\"target\":\"@server\",\"method\":\"slow\",\"id\":\"s5\"}"));
+        serverThread.remove(0).run(); // claims the call, then takes longer than the 200 ms timeout
+        JsonObject slow = a.next();
+        assertTrue("A running call is not timed out under it", slow.get("ok").getAsBoolean());
+        assertEquals("done", slow.get("result").getAsString());
         bus.receive(a, json("{\"action\":\"call\",\"target\":\"@server\",\"method\":\"echo\"}"));
         serverThread.remove(serverThread.size() - 1).run();
         assertTrue("Notifications get no reply", a.lines.poll(300, TimeUnit.MILLISECONDS) == null);
