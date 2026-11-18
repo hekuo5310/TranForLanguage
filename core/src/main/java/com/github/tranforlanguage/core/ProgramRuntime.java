@@ -126,7 +126,11 @@ public final class ProgramRuntime implements AutoCloseable {
             public boolean deliver(String line) {
                 return alive() && queue.offer(line);
             }
-            @Override public boolean alive() { return session == Session.this && !stopped && process.isAlive(); }
+            // Same guard as ordinary actions: close() marks the runtime closed and bumps the generation before
+            // it clears the session, so the session reference alone is not enough.
+            @Override public boolean alive() {
+                return !ProgramRuntime.this.closed && ProgramRuntime.this.generation.get() == Session.this.generation && session == Session.this && !stopped && process.isAlive();
+            }
             @Override public String toString() { return id; }
         };
         Session(Process process, long generation) {
