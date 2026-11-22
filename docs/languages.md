@@ -139,4 +139,4 @@ t.run()
 {"protocol": 1, "language": "python", "entrypoint": "scripts/main.py"}
 ```
 
-`python` / `rust` / `javascript` / `ruby` / `php` 的 `entrypoint` 必须是程序目录内已有文件，分别默认 `main.py` / `main.rs` / `main.js` / `main.rb` / `main.php`；`c` / `cpp` / `go` / `java` 编译程序目录下全部对应顶层源文件。每个插件子目录运行独立进程，同目录仍只放一个程序入口；Rust 内置适配器面向源码入口，不接管用户已有 Cargo 工程。如需自定义 Cargo 依赖或其他语言，先自行构建后用原有 `process` 适配器启动。参见[协议与语言扩展](protocol.md)。编译输出统一写入程序目录的 `compile.log`，`.tranforlanguage/` 是自动维护的构建缓存，不要存放手写代码。
+`python` / `rust` / `javascript` / `ruby` / `php` 的 `entrypoint` 必须是程序目录内已有文件，分别默认 `main.py` / `main.rs` / `main.js` / `main.rb` / `main.php`；`c` / `cpp` / `go` / `java` 编译程序目录下全部对应顶层源文件。每个插件子目录是一个独立程序，按语言和 `runtime` 设置在服务器 JVM 内或独立进程中运行（见[在服务器 JVM 内运行](jvm-runtime.md)，其中说明了 JVM 内没有进程隔离）；同目录仍只放一个程序入口。Rust 的第三方依赖写在程序目录的 `Cargo.toml` 里，构建器会把其中的依赖合并进自动生成的工程（见[依赖管理说明](development.md#34-第三方依赖可选)）；其他语言或完全自定义的构建，先自行构建后用 `process` 适配器启动。参见[协议与语言扩展](protocol.md)。编译输出统一写入程序目录的 `compile.log`，`.tranforlanguage/` 是自动维护的构建缓存，不要存放手写代码。

@@ -40,8 +40,8 @@ coins = call("economy", "balance", "Alex")   # "100"
 ```
 
 - 参数和返回值都是字符串；结构化数据请自行用 JSON 编码。方法抛出的异常 / 返回的错误会在调用方变成该语言的错误（`CallError` 等）。
-- 目标未运行、方法不存在、目标在回复前停止或超时（默认 30 秒，`-Dtranforlanguage.call-timeout-ms=`）时调用立即失败，不会卡住。
-- 等待结果期间收到的调用会被**重入处理**，因此 A 调用 B、B 再回调 A 不会死锁；期间到达的游戏事件会在当前处理器返回后按序处理。Python / Ruby / PHP / Java / Rust / C / C++ 应在事件处理器或主线程中调用；Go 和 JavaScript 可并发调用。
+- 目标未运行、方法不存在、目标在回复前停止或超时（默认 30 秒，`-Dtranforlanguage.call-timeout-ms=`）时调用失败，不会卡住。例外：调用方自己的输入队列（每个程序 2000 条）已满时，失败回复可能被丢弃（服务器日志会记录），没有本地超时的 SDK 会一直等待；请及时处理事件，或用 `events` 只订阅需要的事件。
+- 等待结果期间收到的调用会被**重入处理**，因此 A 调用 B、B 再回调 A 不会死锁；期间到达的游戏事件会在当前处理器返回后按序处理；JavaScript 例外，它的处理器并发执行，一个处理器在 `await call(...)` 时，后续事件的处理器已经可以运行。Python / Ruby / PHP / Java / Rust / C / C++ 应在事件处理器或主线程中调用；Go 和 JavaScript 可并发调用。
 - `publish(topic, ...)` 向除自己以外、接收 `message` 事件的所有插件投递 `message` 事件。若插件 `program.json` 设置了 `events` 过滤，需要把 `"message"` 加入列表；直接调用和回复不受 `events` 过滤。
 - 每个程序可从环境变量 `TRANFORLANGUAGE_PROGRAM_ID`（各 SDK 中的 `program_id` / `programId` / `ProgramID`）得知自己的插件 ID。
 - C/C++ 程序要使用调用功能，需改用 `tranforlanguage_run` / `tranforlanguage::run` 读取事件，不要再自行读取标准输入。

@@ -23,6 +23,7 @@
 | 模组构建 | `python3 scripts/configure-build.py` 输出的 Gradle 版本，以及目标游戏的 JDK 17 / 21 / 25 |
 | 各语言集成测试 | gcc / g++、Python 3.8+、Rust 1.85+ 与 Cargo、Node.js 16+、Go 1.21+、Ruby 3.0+、PHP 7.4+、Lua 5.4 |
 | 在 JVM 内运行的测试 | clang、lld、wasi-libc、与 clang 主版本一致的 `libclang-rt-<版本>-dev-wasm32`，以及 `rustup target add wasm32-wasip1` |
+| 构建脚本（`scripts/*.py`） | Python 3.11+（`check-artifact.py` 使用 `tomllib`） |
 | 实际开服验证（可选） | Node.js 22+，见 [validation/README.md](validation/README.md) |
 
 Debian / Ubuntu 示例：
@@ -33,7 +34,7 @@ sudo apt-get install -y "libclang-rt-$(clang -dumpversion | cut -d. -f1)-dev-was
 rustup target add wasm32-wasip1
 ```
 
-缺少某个工具链时，对应测试会跳过或回退为独立进程。CI 会用 `-Dtranforlanguage.test.requireJvm=true` 把“没能在 JVM 内运行”当作失败。
+完整的 `mvn verify` 需要上表**全部十种语言的运行工具链**：`InteropTest` 会启动所有语言，任何一种启动失败都会让测试（以及 `mvn verify`）失败，不会跳过。只缺少在 JVM 内运行所需的 WASM 工具链时，相应程序会回退为独立进程，`JvmRuntimeTest` 中对应的测试会跳过；CI 使用 `-Dtranforlanguage.test.requireJvm=true`，此时没能在 JVM 内运行会被视为失败。
 
 ## 仓库结构
 
@@ -96,7 +97,7 @@ python3 scripts/check-artifact.py fabric 1.21.1 21 'adapters/fabric/build/libs/*
 - **核心保持 Java 8**（Spigot 1.8 基线）。只有 `core/src/engine/java` 可以使用 Java 11，且只在 Java 11+ 的服务器上加载。
 - **不访问游戏 API 的线程不碰游戏对象**：所有游戏操作通过 `Platform.execute` 在服务器线程执行。
 - **不打包第三方运行时**：翻译器在首次使用时下载并校验固定的 SHA-256；改版本时同时更新哈希。
-- **不修改用户源码目录**：生成的工程、缓存和 SDK 都放在程序目录的 `.tranforlanguage/` 下。
+- **不修改用户源码目录**：生成的工程、缓存和 SDK 都放在程序目录的 `.tranforlanguage/` 下。现有例外：程序带 `package.json` 时，JavaScript 适配器在程序目录创建 `node_modules/`（Node 的模块解析需要），重新安装依赖前会先删除它；不要再新增这类例外。
 - 跨平台行为保持一致：同一事件、动作和 `@server` 方法在 Spigot 与三个模组加载器上参数顺序和含义相同；做不到时在[兼容说明](docs/compatibility.md)中写明。
 - 注释说明“为什么”，而不是复述代码；文档使用中文。
 

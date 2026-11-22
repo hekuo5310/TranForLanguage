@@ -9,8 +9,8 @@
 
 ## 快速开始
 
-1. 从 [Releases](https://github.com/hekuo5310/TranForLanguage/releases) 下载与服务器平台和游戏版本对应的 JAR，放入 `plugins/`（Spigot）或 `mods/`（模组加载器）。
-2. 在程序目录（Spigot：`plugins/TranForLanguage/programs/`，模组：`config/tranforlanguage/programs/`）下新建子目录，例如 `welcome/main.py`：
+1. 从 [Releases](https://github.com/hekuo5310/TranForLanguage/releases) 下载与服务器平台和游戏版本对应的 JAR，放入 `plugins/`（Spigot）或 `mods/`（模组加载器）。Fabric 还需要安装同一游戏版本的 [Fabric API](https://modrinth.com/mod/fabric-api)。
+2. 在程序目录（Spigot：`plugins/TranForLanguage/programs/`，模组：`config/tranforlanguage/programs/`）下新建子目录，例如 `welcome/main.py`（需要服务器上装有 Python 3.8+，其他语言的要求见[语言指南](docs/languages.md)）：
 
    ```python
    from tranforlanguage import on, run, send_message

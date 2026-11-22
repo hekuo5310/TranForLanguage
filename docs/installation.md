@@ -17,7 +17,7 @@
 
 ### Spigot
 
-需要 Maven 3.9 和 JDK 17 或以上。输出 Java 8 字节码，服务器仍需使用其 Minecraft 版本要求的 Java。
+需要 Maven 3.9 和 JDK 17 或以上。核心输出 Java 8 字节码；在 JVM 内运行程序的翻译器胶水代码（`core/jvm/engine`）为 Java 11 字节码，只在 Java 11+ 的服务器上加载，Java 8 服务器上程序自动以独立进程运行。服务器仍需使用其 Minecraft 版本要求的 Java。
 
 ```bash
 mvn clean verify
@@ -31,13 +31,18 @@ mvn clean verify
 
 ```bash
 python3 scripts/configure-build.py fabric 1.20
-# 按脚本输出安装对应 Gradle。Gradle 8 工具链运行于 JDK 21，Gradle 9 工具链运行于 JDK 25。
 gradle -p adapters/fabric clean build
+```
 
+`configure-build.py` 只写入构建配置并**输出**该目标需要的 Gradle 与 JDK 版本，不会切换你的环境。每次换目标都要按输出切换：Gradle 8 运行于 JDK 21，Gradle 9 运行于 JDK 25。例如 Fabric 1.20 使用 Gradle 8，而 NeoForge 26.3 需要先切换到 Gradle 9 与 JDK 25：
+
+```bash
 python3 scripts/configure-build.py neoforge 26.3
+# 按输出切换到 Gradle 9.x 与 JDK 25 后再构建
 gradle -p adapters/neoforge clean build
 
 python3 scripts/configure-build.py forge 1.21
+# 同样按输出切换工具链
 gradle -p adapters/forge clean build
 ```
 

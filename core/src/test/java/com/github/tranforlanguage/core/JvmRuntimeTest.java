@@ -156,6 +156,18 @@ public class JvmRuntimeTest {
         assertFalse(logged("inside the server JVM"));
     }
 
+    @Test public void jvmRuntimeFailsForProgramsThatCanOnlyRunAsProcesses() throws Exception {
+        write("program.json", "{\"language\":\"python\",\"runtime\":\"jvm\"}");
+        write("main.py", "from tranforlanguage import run\nrun()\n");
+        try {
+            runtime.reload().get(60, TimeUnit.SECONDS);
+            fail("python with runtime=jvm must not start as a process");
+        } catch (ExecutionException expected) {
+            assertTrue(String.valueOf(expected.getCause()), String.valueOf(expected.getCause()).contains("runtime \"jvm\" requested"));
+        }
+        assertFalse(runtime.isRunning());
+    }
+
     @Test public void pipeReportsCompleteLines() throws Exception {
         BytePipe pipe = new BytePipe(16);
         assertFalse(pipe.lineReady());

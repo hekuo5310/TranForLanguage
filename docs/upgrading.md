@@ -21,7 +21,18 @@
 升级步骤：
 
 1. 停服，替换 JAR（不要同时安装新旧两份）。
-2. 把旧程序目录移动到新位置，例如 `mv "plugins/C++ Plugins" plugins/TranForLanguage/programs`，或 `mv config/tranforcpp config/tranforlanguage`。
+2. 把旧程序移动到新位置。新目录可能还不存在，也可能已被新版本创建；下面的命令两种情况都适用，并且不会覆盖目标目录中已有的同名程序（`-n`）：
+
+   ```bash
+   # Spigot
+   mkdir -p plugins/TranForLanguage/programs
+   mv -n "plugins/C++ Plugins"/* plugins/TranForLanguage/programs/
+   # 模组加载器
+   mkdir -p config/tranforlanguage/programs
+   mv -n config/tranforcpp/programs/* config/tranforlanguage/programs/
+   ```
+
+   命令结束后旧目录里若还有剩余，说明新目录已有同名程序，请手动比较后再处理。
 3. 在程序源码中把 `tranforcpp` 导入 / `Tranfor` 类 / `tranforcpp_*` 函数改为新名称，删除各程序目录下的 `.tranforcpp/`。
 4. 权限插件中的 `tranforcpp.*` 节点改为 `tranforlanguage.*`；JVM 启动参数改为 `-Dtranforlanguage.*`。
 5. 其他 Bukkit 插件若依赖旧插件名 `TranforCPlusPlus` 或旧事件类，改为 `TranForLanguage` 和新类名。

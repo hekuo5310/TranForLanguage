@@ -39,7 +39,12 @@ public final class LanguageProviders {
         String language = config.has("language") ? config.get("language").getAsString() : detect(directory);
         LanguageProvider provider = providers.get(language);
         if (provider == null) throw new IllegalArgumentException("Unknown language provider: " + language);
-        return provider.prepare(directory, config, logger);
+        LaunchCommand command = provider.prepare(directory, config, logger);
+        // "jvm" is a promise: a language or setup that only runs as a process must fail, not silently fall back.
+        if (command != null && !command.inJvm() && com.github.tranforlanguage.core.jvm.JvmEngines.mode(config) == com.github.tranforlanguage.core.jvm.JvmEngines.Mode.JVM)
+            throw new IllegalArgumentException("runtime \"jvm\" requested, but this " + language
+                + " program can only run as a separate process (see the in-JVM requirements for the language)");
+        return command;
     }
     private String detect(File directory) {
         Set<String> found = new LinkedHashSet<>();
