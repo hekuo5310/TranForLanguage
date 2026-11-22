@@ -3,7 +3,7 @@
 本文面向两类读者：
 
 - **程序开发者**：用 C、C++、Python、Rust、JavaScript、Go、Ruby、PHP、Java 或 Lua 编写在 Minecraft 服务端运行的程序（下文称“插件”）。见第 1–9 节。
-- **项目贡献者**：修改 TranForLanguage 本身（平台适配、语言适配器、事件）。见第 10 节。
+- **项目贡献者**：修改 TranForLanguage 本身（平台适配、语言适配器、事件）。见[贡献指南](../CONTRIBUTING.md)。
 
 协议的逐字段定义见 [协议文档](protocol.md)，平台差异与验证范围见 [兼容说明](compatibility.md)。
 
@@ -465,52 +465,4 @@ C / C++ 也可以不使用 `tranforlanguage_run`，自行逐行读取标准输�
 
 ## 10. 参与开发 TranForLanguage
 
-### 10.1 仓库结构
-
-| 路径 | 内容 |
-| --- | --- |
-| `core/` | 与平台无关的核心：`ProgramManager`（插件管理）、`ProgramRuntime`（进程与协议）、`ProgramBus`（程序间调用）、`language/`（各语言适配器）、`resources/sdk/`（各语言 SDK） |
-| `src/` | Spigot 插件（`ProcessManager` 监听 Bukkit 事件） |
-| `adapters/minecraft/` | 三个模组加载器共用的代码：命令、`ModEvents`（按 tick 检查状态）、Mixin |
-| `adapters/fabric/`、`adapters/forge/`、`adapters/neoforge/` | 各加载器的入口模板与构建脚本 |
-| `scripts/` | 版本锁定、构建配置、产物检查 |
-| `compatibility/` | 锁定的游戏/加载器版本矩阵 |
-| `validation/` | 真实服务端冒烟测试 |
-| `examples/` | 各语言示例 |
-
-### 10.2 构建与测试
-
-```bash
-mvn verify                                    # Spigot 插件 + 全部核心测试（需要 10 种语言的工具链）
-python3 scripts/test-versions.py              # 版本范围测试
-python3 scripts/configure-build.py fabric 1.21.1
-gradle -p adapters/fabric build               # 构建单个模组目标
-python3 scripts/check-artifact.py fabric 1.21.1 21 'adapters/fabric/build/libs/*.jar'
-```
-
-核心测试会真实编译和运行各语言程序，`InteropTest` 让 10 种语言同时运行并互相调用。
-
-### 10.3 添加一种语言
-
-1. 在 `core/src/main/java/.../core/language/` 实现 `LanguageProvider`：`id()` 返回语言标识，`prepare()` 完成编译并返回 `LaunchCommand`（工作目录、参数、附加环境变量）。不要在这里访问游戏 API。能预先翻译成 JVM 字节码的语言，用 `InJvm.attempt(...)` 先尝试 `LaunchCommand.inJvm(...)`，失败时回退为进程（见[协议文档](protocol.md#在-jvm-内运行的翻译器)），并在 `JvmRuntimeTest` 加入测试。
-2. 在 `LanguageProviders` 的构造函数中注册，并在 `detectLanguage()` 中加入自动识别的文件名。
-3. 在 `core/src/main/resources/sdk/<语言>/` 提供 SDK，实现 `on` / `run`、四个动作，以及 `handle` / `call` / `notify` / `publish`（等待回复时要处理收到的 `call`，避免互相调用死锁）。
-4. 在 `BuiltinLanguagesTest` 加入中文往返测试，在 `core/src/test/resources/interop/<语言>/` 加入互调测试程序，并把语言加入 `InteropTest.LANGUAGES`。
-5. 在 `scripts/check-artifact.py` 中加入 SDK 文件，在 CI 中加入工具链检查，并更新文档。
-
-### 10.4 添加一个事件
-
-1. **Spigot**：在 `ProcessManager` 中添加 `@EventHandler`。只在新版本才有的 Bukkit 事件用 `optional(...)` 按类名注册，并通过反射访问新 API，保持 1.8 基线可编译。
-2. **模组**：优先在 `ModEvents.tick` 中比较状态（不需要新 Mixin，跨版本最稳定）；需要拦截游戏逻辑时再加 Mixin（`adapters/minecraft/src/main/mixins/`，并加入 `generate-adapter.gradle` 的 Mixin 列表）。版本差异用 `.template` 文件和 `generate-adapter.gradle` 中的替换处理；只是成员名或可见性变化时，放进 `Versions.java.template`。
-
-### 10.5 添加一个 `@server` 方法
-
-1. Spigot：在 `SpigotServerApi` 中实现；模组：在 `MinecraftPlatform.serverCall` 中实现。参数用 `ServerArgs` 读取，以保证错误信息一致；失败时抛出 `IllegalArgumentException`。
-2. 模组端涉及跨版本变化的 API 时，优先通过 Brigadier 执行原版命令（`command(...)`），并严格校验拼入命令的参数。
-3. 在 `ProgramManagerTest` / `validation/run.cjs` 中加入测试，更新本文 6.1 节。
-3. 事件名使用 PascalCase，参数全部是字符串，同一事件在各平台的参数顺序必须一致。
-4. 更新本文第 5 节和 [兼容说明](compatibility.md) 的事件表。
-
-### 10.6 发布
-
-版本号在 `pom.xml` 中定义，模组构建也读取它。CI 只在推送到 main 的提交信息包含 `[release-v<版本>]` 标记时创建标签并发布；合并 PR 前请确认最终提交信息里有这个标记。
+仓库结构、开发环境、构建与测试、添加语言 / 事件 / `@server` 方法的步骤、代码约定和发布流程，见[贡献指南](../CONTRIBUTING.md)。

@@ -9,7 +9,7 @@
 - 没有显式 `language` 时识别目录中的 `.cpp`、`.c`、`main.py`、`main.rs`、`main.js`、`main.go`、`main.rb`、`main.php`、`Main.java`；同时出现多种语言会要求在 `program.json` 指定语言。空目录不启动进程。
 - 每个直接子目录对应一个独立插件进程，子目录可使用不同语言。程序目录根部也有程序时以 `@root` 同时加载。多个 `.cpp` 在各自目录内编译成一个程序，不能在同一插件目录中并行选择多个语言。
 
-内置适配器为 `cpp`、`c`、`python`、`rust`、`javascript`、`go`、`ruby`、`php`、`java`。Python / Rust / JavaScript / Ruby / PHP 支持 `entrypoint`（默认 `main.py` / `main.rs` / `main.js` / `main.rb` / `main.php`），Go / Java 编译目录下全部顶层源文件（Java 可用 `mainClass` 指定主类），无需自己构造解释器或编译命令；SDK 用法见 [README](../README.md)。C/C++ 的 API（`tranforlanguage.h` / `tranforlanguage.hpp`）在编译时自动注入，也可以显式 include。
+内置适配器为 `cpp`、`c`、`python`、`rust`、`javascript`、`go`、`ruby`、`php`、`java`、`lua`。Python / Rust / JavaScript / Ruby / PHP 支持 `entrypoint`（默认 `main.py` / `main.rs` / `main.js` / `main.rb` / `main.php`），Go / Java 编译目录下全部顶层源文件（Java 可用 `mainClass` 指定主类），无需自己构造解释器或编译命令；SDK 用法见[语言指南](languages.md)。C/C++ 的 API（`tranforlanguage.h` / `tranforlanguage.hpp`）在编译时自动注入，也可以显式 include。
 
 通用 `process` 适配器仍可运行 Node.js、Java、自定义 Cargo 工程的预编译产物等：
 
@@ -52,7 +52,7 @@ C 适配器使用 `gcc -std=c11 -pthread`，C++ 适配器使用 `g++ -std=c++17 
 
 `dispatchCommand` 仍作为 `executeCommand` 的兼容别名接受。游戏操作统一进入服务器线程；旧 `sync` 字段被兼容接受，但不允许程序要求在 IO 线程执行 Minecraft 命令。重载前积压的旧进程操作会被丢弃。
 
-程序没有沙箱隔离，以服务端宿主权限执行；控制台命令动作拥有控制台权限。安装、源码和依赖必须由管理员信任与管理，详见 README 的运行边界。
+程序没有沙箱隔离，以服务端宿主权限执行；控制台命令动作拥有控制台权限。安装、源码和依赖必须由管理员信任与管理，详见[运行边界](administration.md#程序权限与运行边界)。
 
 Spigot 使用 MiniMessage 转 Bukkit 传统颜色字符串；模组端当前将消息作为纯文本发送，不能宣称两端富文本格式完全一致。
 
