@@ -134,6 +134,7 @@ dependencies {
     engineCompileOnly 'com.dylibso.chicory:compiler:1.7.5'
     engineCompileOnly 'com.dylibso.chicory:wasi:1.7.5'
     engineCompileOnly 'org.ow2.asm:asm:9.9.1'
+    engineCompileOnly 'org.luaj:luaj-jse:3.0.1'
 }
 tasks.named('compileEngineJava', JavaCompile) { options.release = 11 }
 jar { from(sourceSets.engine.output) }

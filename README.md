@@ -1,6 +1,6 @@
 # TranForLanguage
 
-让 Minecraft 服务端通过统一进程协议运行 C、C++、Python、Rust、JavaScript、Go、Ruby、PHP 和 Java 程序。不同语言的插件同时运行，并能[互相调用](#程序间互相调用)。
+让 Minecraft 服务端通过统一进程协议运行 C、C++、Python、Rust、JavaScript、Go、Ruby、PHP、Java 和 Lua 程序。不同语言的插件同时运行，并能[互相调用](#程序间互相调用)。
 
 编写插件请看 **[开发文档](docs/development.md)**：快速开始、`program.json` 参考、全部 41 个事件及参数、`@server` 游戏操作（传送、给物品、改方块等）、第三方依赖管理、各语言 SDK 速查和排错。
 
@@ -169,9 +169,21 @@ public class Main {
 
 目录下全部顶层 `.java` 文件与内置 SDK 一起用 `javac` 编译到 `.tranforlanguage/java-classes/`；服务器为 Java 11+ 时改写字节码后在**服务器 JVM 内**运行（见下方[在服务器 JVM 内运行](#在服务器-jvm-内运行预先翻译的字节码)），否则以独立 JVM 运行。默认使用服务器 JVM 同目录的 `javac` / `java`（不存在时用 `PATH`），可用 `-Dtranforlanguage.javac=` / `-Dtranforlanguage.java=` 指定；需要 JDK 8+。主类默认 `Main`，可在 `program.json` 用 `"mainClass": "com.example.Main"` 修改。见 [Java 示例](examples/java)。
 
+### Lua
+
+放入 `main.lua`，`require('tranforlanguage')` 由服务端自动解析到内置 SDK：
+
+```lua
+local t = require('tranforlanguage')
+t.on('PlayerJoin', function(player) t.send_message(player, 'Welcome from Lua!') end)
+t.run()
+```
+
+服务器为 Java 11+ 时，程序目录下全部 `.lua` 文件和 SDK 由 LuaJ 的 `luajc` 编译成 JVM 类，在服务器 JVM 内运行（LuaJ 实现 Lua 5.2；`require('lib.util')` 直接加载 `lib/util.lua` 编译后的类）。否则用 Lua 5.1–5.4 解释器运行（默认 `lua`，`-Dtranforlanguage.lua=/path/to/lua`），SDK 通过 `LUA_PATH` 注入。`call()` 失败时抛出错误对象，用 `pcall` 捕获、`t.is_call_error(err)` 判断、`tostring(err)` 取得原因；`t.json_encode` / `t.json_decode` 可编码结构化参数。
+
 ### 语言选择和其他语言
 
-仅有一种语言时自动识别 `.cpp`、`.c`、`main.py`、`main.rs`、`main.js`、`main.go`、`main.rb`、`main.php` 或 `Main.java`。存在多种语言时需用 `program.json` 明确选择，例如：
+仅有一种语言时自动识别 `.cpp`、`.c`、`main.py`、`main.rs`、`main.js`、`main.go`、`main.rb`、`main.php`、`Main.java` 或 `main.lua`。存在多种语言时需用 `program.json` 明确选择，例如：
 
 ```json
 {"protocol": 1, "language": "python", "entrypoint": "scripts/main.py"}
@@ -181,7 +193,7 @@ public class Main {
 
 ### 在服务器 JVM 内运行（预先翻译的字节码）
 
-2.3.0 起，C、Rust、Go、Java 和 Ruby 程序在**准备阶段一次性翻译成 JVM class 字节码**，启动时只加载已保存的类，在服务器 JVM 内运行，不再另起进程，也不会在每次启动时重新翻译。源码不变时，重载直接复用翻译结果。
+2.3.0 起，C、Rust、Go、Java、Ruby 和 Lua 程序在**准备阶段一次性翻译成 JVM class 字节码**，启动时只加载已保存的类，在服务器 JVM 内运行，不再另起进程，也不会在每次启动时重新翻译。源码不变时，重载直接复用翻译结果。
 
 | 语言 | 翻译方式 | 要求 |
 | --- | --- | --- |
@@ -190,10 +202,11 @@ public class Main {
 | Go | `GOOS=wasip1 GOARCH=wasm go build`，再由 Chicory 翻译 | Java 11+；Go 1.21+ |
 | Java | `javac` 编译后用 ASM 改写字节码：`System.in/out/err`、`System.exit`、`System.getenv`、`Runtime.exit/halt` 改为指向该程序自己的流、环境变量和退出码 | Java 11+ |
 | Ruby | JRuby 的 `jrubyc` 编译为 class，`require` / `require_relative` 加载编译后的类 | Java 21+；没有 `Gemfile`；不使用 `__FILE__` / `__dir__` / `$0` |
+| Lua | LuaJ 的 `luajc` 编译为 class（Lua 5.2），`require` 加载编译后的类；`io.open` 等相对路径以程序目录为准 | Java 11+ |
 
 C++、JavaScript、Python 和 PHP 仍以独立进程运行：WASI 的 C++ 标准库没有异常支持（SDK 依赖异常），Rhino 不支持 `class` / `async`，Python 3 与 PHP 没有维护中的字节码编译器。
 
-- 翻译器（Chicory、ASM、JRuby）**不打包进插件/模组 JAR**。某种语言第一次需要时，从 Maven Central 下载到程序目录下的 `.runtimes/`，逐个校验固定的 SHA-256，之后离线复用。可用 `-Dtranforlanguage.runtime.repositories=https://镜像1/,https://镜像2/` 指定镜像，`-Dtranforlanguage.runtimes=/路径` 指定存放位置。
+- 翻译器（Chicory、ASM、JRuby、LuaJ）**不打包进插件/模组 JAR**。某种语言第一次需要时，从 Maven Central 下载到程序目录下的 `.runtimes/`，逐个校验固定的 SHA-256，之后离线复用。可用 `-Dtranforlanguage.runtime.repositories=https://镜像1/,https://镜像2/` 指定镜像，`-Dtranforlanguage.runtimes=/路径` 指定存放位置。
 - `program.json` 的 `"runtime"` 选择运行方式：`"auto"`（默认，能翻译就在 JVM 内运行，缺少工具链、Java 版本过低或不支持时自动回退为独立进程，原因写入日志）、`"jvm"`（必须在 JVM 内运行，否则报错）、`"process"`（始终独立进程）。JVM 参数 `-Dtranforlanguage.runtime=process` 可为全部程序设置默认值。
 - 程序与服务器共享内存和 CPU，**没有进程隔离**：死循环或耗尽内存会影响服务器。停止程序时会中断它的线程并关闭它的输入输出；忽略中断的线程无法被强制结束。需要隔离的程序请设置 `"runtime": "process"`。
 
@@ -226,7 +239,7 @@ C++、JavaScript、Python 和 PHP 仍以独立进程运行：WASI 的 C++ 标准
 | 单向通知 | `notify(...)` | `notify(...)` | `t.Notify(...)` | `notify(...)` | `tranforlanguage::notify(...)` |
 | 发布 / 订阅 | `publish` / `@subscribe` | `publish` / `subscribe` | `t.Publish` / `t.Subscribe` | `publish` / `run` 中的 `message` 事件 | `tranforlanguage::publish` / `run` 中的 `message` 事件 |
 
-Ruby（`TranForLanguage.handle` / `TranForLanguage.call`）、PHP（`TranForLanguage::handle` / `TranForLanguage::call`）、Java（`TranForLanguage.handle` / `TranForLanguage.call`）和 C（`tranforlanguage_handle` / `tranforlanguage_call` / `tranforlanguage_run`）提供同样的功能。例如 Go 程序 `economy` 暴露方法，Python 程序调用它：
+Ruby（`TranForLanguage.handle` / `TranForLanguage.call`）、PHP（`TranForLanguage::handle` / `TranForLanguage::call`）、Java（`TranForLanguage.handle` / `TranForLanguage.call`）、Lua（`t.handle` / `t.call`）和 C（`tranforlanguage_handle` / `tranforlanguage_call` / `tranforlanguage_run`）提供同样的功能。例如 Go 程序 `economy` 暴露方法，Python 程序调用它：
 
 ```go
 t.Handle("balance", func(args []string) (string, error) { return "100", nil })

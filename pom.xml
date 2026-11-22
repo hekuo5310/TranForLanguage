@@ -2,7 +2,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>com.github.tranforlanguage</groupId><artifactId>tranforlanguage-spigot</artifactId><version>2.3.0</version>
   <name>TranForLanguage</name>
-  <description>Run C, C++, Python, Rust, JavaScript, Go, Ruby, PHP and Java programs on Minecraft servers and let them call each other.</description>
+  <description>Run C, C++, Python, Rust, JavaScript, Go, Ruby, PHP, Java and Lua programs on Minecraft servers and let them call each other.</description>
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <maven.compiler.release>8</maven.compiler.release>
@@ -31,6 +31,7 @@
     <dependency><groupId>com.dylibso.chicory</groupId><artifactId>compiler</artifactId><version>1.7.5</version><scope>provided</scope></dependency>
     <dependency><groupId>com.dylibso.chicory</groupId><artifactId>wasi</artifactId><version>1.7.5</version><scope>provided</scope></dependency>
     <dependency><groupId>org.ow2.asm</groupId><artifactId>asm</artifactId><version>9.9.1</version><scope>provided</scope></dependency>
+    <dependency><groupId>org.luaj</groupId><artifactId>luaj-jse</artifactId><version>3.0.1</version><scope>provided</scope></dependency>
   </dependencies>
   <build>
     <testResources><testResource><directory>core/src/test/resources</directory></testResource></testResources>

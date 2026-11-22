@@ -44,6 +44,11 @@ public final class RuntimeLibraries {
     public static final List<Artifact> RUBY = Collections.singletonList(
         new Artifact("org.jruby:jruby-complete:10.1.3.0", "f38876a273f9287f01cc7680acf2f1bf9592c97f29d5ff4be7f2a1eba271c514"));
 
+    /** LuaJ: Lua compiled to JVM classes by luajc, which generates bytecode with BCEL. */
+    public static final List<Artifact> LUA = Collections.unmodifiableList(Arrays.asList(
+        new Artifact("org.luaj:luaj-jse:3.0.1", "9b1f0a3e8f68427c6d74c2bf00ae0e6dbfce35994d3001fed4cef6ecda50be55"),
+        new Artifact("org.apache.bcel:bcel:5.2", "7b87e2fd9ac3205a6e5ba9ef5e58a8f0ab8d1a0e0d00cb2a761951fa298cc733")));
+
     private static final List<String> DEFAULT_REPOSITORIES = Arrays.asList(
         "https://repo1.maven.org/maven2/", "https://maven-central.storage-download.googleapis.com/maven2/");
     private static volatile File store;

@@ -123,6 +123,39 @@ public class JvmRuntimeTest {
         assertTrue(new File(platform.dir, ".tranforlanguage/ruby-classes/lib/greeting.class").isFile());
     }
 
+    @Test public void luaRequiresCompiledModulesReadsRelativeFilesAndExits() throws Exception {
+        Assume.assumeTrue(JvmEngines.javaVersion() >= 11);
+        write("lib/greeting.lua", "return { text = function() return 'compiled module' end }\n");
+        write("data.txt", "from the program directory\n");
+        write("main.lua", "local t = require('tranforlanguage')\nlocal greeting = require('lib.greeting')\n"
+            + "local file = assert(io.open('data.txt'))\nlocal line = file:read('*l')\nfile:close()\n"
+            + "t.broadcast(greeting.text() .. ' / ' .. line .. ' / ' .. os.getenv('TRANFORLANGUAGE_PROGRAM_ID'))\n"
+            + "t.on('PlayerJoin', function() os.exit(5) end)\nt.run()\n");
+        runtime.reload().get(120, TimeUnit.SECONDS);
+        assumeInJvm("Lua");
+        assertEquals("compiled module / from the program directory / @local", broadcast(10));
+        assertTrue(new File(platform.dir, ".tranforlanguage/lua-classes/modules.properties").isFile());
+        runtime.sendEvent("PlayerJoin", "Alex");
+        long deadline = System.currentTimeMillis() + 10000;
+        while (runtime.isRunning() && System.currentTimeMillis() < deadline) Thread.sleep(50);
+        Thread.sleep(200);
+        assertTrue(log.toString(), logged("exited unexpectedly with code 5"));
+    }
+
+    @Test public void luaRunsWithTheNativeInterpreterInProcessMode() throws Exception {
+        String lua = System.getProperty("tranforlanguage.lua", "lua");
+        boolean available;
+        try { available = new ProcessBuilder(lua, "-v").redirectErrorStream(true).start().waitFor() == 0; }
+        catch (IOException missing) { available = false; }
+        Assume.assumeTrue("no " + lua + " interpreter", available || Boolean.getBoolean("tranforlanguage.test.requireJvm"));
+        write("program.json", "{\"runtime\":\"process\"}");
+        write("main.lua", "local t = require('tranforlanguage')\nt.on('PlayerJoin', function(p) t.broadcast(p) end)\nt.run()\n");
+        runtime.reload().get(60, TimeUnit.SECONDS);
+        runtime.sendEvent("PlayerJoin", "你好 \"quoted\" \\path");
+        assertEquals("你好 \"quoted\" \\path", broadcast(10));
+        assertFalse(logged("inside the server JVM"));
+    }
+
     @Test public void pipeReportsCompleteLines() throws Exception {
         BytePipe pipe = new BytePipe(16);
         assertFalse(pipe.lineReady());

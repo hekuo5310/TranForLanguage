@@ -43,9 +43,10 @@ jobs:
         if: matrix.api == '1.8'
         run: |
           sudo apt-get update -q
-          sudo apt-get install -y -q clang lld wasi-libc libclang-rt-18-dev-wasm32
+          sudo apt-get install -y -q clang lld wasi-libc libclang-rt-18-dev-wasm32 lua5.4
           rustup target add wasm32-wasip1
           clang --target=wasm32-wasi -x c -o /tmp/probe.wasm - <<< 'int main(void){return 0;}'
+          lua -v
       - name: Compile against exact Spigot API
         run: mvn -s .github/maven-settings.xml -U -B -ntp verify -Dspigot.version=${{ matrix.api }}-R0.1-SNAPSHOT -DskipTests=${{ matrix.api != '1.8' }} -Dtranforlanguage.test.requireJvm=true
       - name: Verify plugin metadata and Java 8 artifact

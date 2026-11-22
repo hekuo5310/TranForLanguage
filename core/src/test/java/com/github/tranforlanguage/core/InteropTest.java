@@ -10,7 +10,7 @@ import static org.junit.Assert.*;
 
 /** Every SDK language runs side by side and calls every other one through the program bus. */
 public class InteropTest {
-    static final String[] LANGUAGES = {"c", "cpp", "python", "rust", "javascript", "go", "ruby", "php", "java"};
+    static final String[] LANGUAGES = {"c", "cpp", "python", "rust", "javascript", "go", "ruby", "php", "java", "lua"};
     @Rule public TemporaryFolder temp = new TemporaryFolder();
     private ProgramManagerTest.RecordingPlatform platform;
     private ProgramManager manager;
