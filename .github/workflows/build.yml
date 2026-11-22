@@ -43,7 +43,9 @@ jobs:
         if: matrix.api == '1.8'
         run: |
           sudo apt-get update -q
-          sudo apt-get install -y -q clang lld wasi-libc libclang-rt-18-dev-wasm32 lua5.4
+          sudo apt-get install -y -q clang lld wasi-libc lua5.4
+          # The WASM builtins must match the default clang's major version (18 on 24.04, 21 on 26.04).
+          sudo apt-get install -y -q "libclang-rt-$(clang -dumpversion | cut -d. -f1)-dev-wasm32"
           rustup target add wasm32-wasip1
           clang --target=wasm32-wasi -x c -o /tmp/probe.wasm - <<< 'int main(void){return 0;}'
           lua -v
