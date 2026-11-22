@@ -2,10 +2,7 @@
 #define TRANFORLANGUAGE_H
 #include <stdio.h>
 #include <stdbool.h>
-#include <pthread.h>
 #include "tranforlanguage_rpc.h"
-
-extern pthread_mutex_t tranforlanguage_output_mutex;
 static inline void tranforlanguage_json_string(const char *s) { tranforlanguage_write_json_string(s); }
 static inline void tranforlanguage_emit(const char *action, const char *key, const char *value, const char *player) {
     tranforlanguage_lock_output();

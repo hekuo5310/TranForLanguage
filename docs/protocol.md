@@ -95,6 +95,11 @@ SDK 在等待回复时继续读取输入：其他调用被重入应答（A → B
 
 - `id()`：唯一语言标识。
 - `prepare(directory, configuration, logger)`：进行需要的编译或准备，返回不可变的 `LaunchCommand`（工作目录、argv 与可选的附加环境变量）；没有程序时返回 `null`。
+- 程序已翻译成 JVM 类时，返回 `LaunchCommand.inJvm(directory, program, environment)`：`JvmProgram.run(stdin, stdout, stderr, environment)` 在服务器的线程上运行，`InJvmProcess` 把它包装成 `Process`，运行时与独立进程完全相同地驱动它（同样的协议、队列和停止流程）。翻译应在 `prepare` 中完成并缓存，启动时不再翻译。
 - 不在此处访问游戏 API，也不实现重复的事件队列或进程协议。
+
+### 在 JVM 内运行的翻译器
+
+`core/jvm/` 中的 `JvmEngines.load(libraries, implementation, api, logger)` 按需下载 `RuntimeLibraries` 中固定 SHA-256 的库，在隔离的 `EngineLoader` 中加载 `core/src/engine/java/.../core/jvm/engine/` 下的胶水类（Java 11 编译，库类优先于服务器上的同名库）。现有实现：`ChicoryWasmEngine`（WebAssembly → 字节码，类按模块摘要保存在 `.tranforlanguage/jvm-classes/`）、`AsmJavaInstrumenter`（Java 程序的 `System` / `Runtime` 进程级调用改写到 `tranforlanguage.ProgramSystem`）、`JRubyEngine`（`jrubyc`）、`LuaJEngine`（`luajc`，模块类索引在 `.tranforlanguage/lua-classes/modules.properties`）。Go 的 WASI 构建会导入 `tranforlanguage.stdin_ready() -> i32`：WebAssembly 只有一个线程，SDK 用它轮询输入，避免阻塞读取冻结所有 goroutine。
 
 可以在启动前调用 `runtime.languages().register(provider)`，或通过同一加载器可见的 Java SPI 文件 `META-INF/services/com.github.tranforlanguage.core.language.LanguageProvider` 打包适配器。服务加载器使用核心类加载器；外部放置 JAR 不会自动安装，当前没有动态扩展目录扫描功能。未知语言和协议版本会明确报错。

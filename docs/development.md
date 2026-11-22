@@ -2,7 +2,7 @@
 
 本文面向两类读者：
 
-- **程序开发者**：用 C、C++、Python、Rust、JavaScript、Go、Ruby、PHP 或 Java 编写在 Minecraft 服务端运行的程序（下文称“插件”）。见第 1–9 节。
+- **程序开发者**：用 C、C++、Python、Rust、JavaScript、Go、Ruby、PHP、Java 或 Lua 编写在 Minecraft 服务端运行的程序（下文称“插件”）。见第 1–9 节。
 - **项目贡献者**：修改 TranForLanguage 本身（平台适配、语言适配器、事件）。见第 10 节。
 
 协议的逐字段定义见 [协议文档](protocol.md)，平台差异与验证范围见 [兼容说明](compatibility.md)。
@@ -76,6 +76,7 @@ SDK 由服务端自动提供，不需要复制任何 SDK 文件，也不需要�
 | Ruby | `ruby` | `main.rb` | `entrypoint`，默认 `main.rb` | `ruby`（3.0+），`-Dtranforlanguage.ruby=` |
 | PHP | `php` | `main.php` | `entrypoint`，默认 `main.php` | `php`（7.4+），`-Dtranforlanguage.php=` |
 | Java | `java` | `Main.java` | 目录下全部顶层 `.java`，主类 `mainClass` | 服务器 JVM 旁的 `javac` / `java`（JDK 8+），`-Dtranforlanguage.javac=` / `-Dtranforlanguage.java=` |
+| Lua | `lua` | `main.lua` | `entrypoint`，默认 `main.lua`；目录下全部 `.lua` 作为可 `require` 的模块 | Java 11+ 时由 LuaJ 编译在 JVM 内运行；否则 `lua`（5.1–5.4），`-Dtranforlanguage.lua=` |
 | 其他 | `process` | — | `command` 数组 | 自行提供 |
 
 ### 3.3 字段
@@ -93,7 +94,7 @@ SDK 由服务端自动提供，不需要复制任何 SDK 文件，也不需要�
 | --- | --- | --- |
 | `protocol` | 数字 | 协议版本，目前只能是 `1`；省略视为 `1`。 |
 | `language` | 字符串 | 见上表；省略时自动识别。 |
-| `entrypoint` | 字符串 | Python / Rust / JavaScript / Ruby / PHP 的入口文件，必须位于插件目录内。 |
+| `entrypoint` | 字符串 | Python / Rust / JavaScript / Ruby / PHP / Lua 的入口文件，必须位于插件目录内。 |
 | `mainClass` | 字符串 | Java 主类，默认 `Main`，可带包名，如 `com.example.Main`。 |
 | `command` | 字符串数组 | `process` 语言的完整命令，直接执行，不经过 shell。 |
 | `events` | 字符串数组 | 只接收列出的事件；省略表示接收全部；空数组表示不接收游戏事件（仍会收到 `shutdown`）。要接收其他插件发布的消息，需要包含 `"message"`。程序间调用不受此过滤影响。 |
@@ -286,7 +287,7 @@ except CallError as error:
 - 参数和结果都是字符串；结构化数据请用 JSON 编码后传递。
 - 目标未运行、方法不存在、目标在回复前停止、超时（默认 30 秒，`-Dtranforlanguage.call-timeout-ms`）时，调用会立即失败而不是卡住。
 - 等待结果期间收到的调用会被处理，所以 A 调用 B、B 再回调 A 不会死锁。
-- Python / Ruby / PHP / Java / Rust / C / C++ 请在事件处理器或主线程里调用；Go 和 JavaScript 可以并发调用。
+- Python / Ruby / PHP / Java / Lua / Rust / C / C++ 请在事件处理器或主线程里调用；Go 和 JavaScript 可以并发调用。
 - 插件 ID 可从环境变量 `TRANFORLANGUAGE_PROGRAM_ID` 读取（各 SDK 中的 `program_id` / `programId` / `ProgramID`）。
 
 完整示例：[examples/interop](../examples/interop)。
@@ -398,6 +399,20 @@ TranForLanguage.console("x"); TranForLanguage.dispatchCommand("say x");
 TranForLanguage.run();
 ```
 
+### Lua
+
+```lua
+local t = require('tranforlanguage')
+t.on('PlayerChat', function(player, message) end)
+t.handle('greet', function(name) return 'hi ' .. name end)
+t.subscribe('news', function(sender, text) end)
+local ok, err = pcall(t.call, 'other', 'greet', 'Alex')  -- 失败时抛出错误对象：t.is_call_error(err)，tostring(err) 为原因
+t.server('giveItem', 'Alex', 'minecraft:diamond', 3)
+t.broadcast('x'); t.send_message(p, 'x')
+t.console('x'); t.dispatch_command('say x')
+t.run()
+```
+
 ### C
 
 ```c
@@ -466,18 +481,18 @@ C / C++ 也可以不使用 `tranforlanguage_run`，自行逐行读取标准输�
 ### 10.2 构建与测试
 
 ```bash
-mvn verify                                    # Spigot 插件 + 全部核心测试（需要 9 种语言的工具链）
+mvn verify                                    # Spigot 插件 + 全部核心测试（需要 10 种语言的工具链）
 python3 scripts/test-versions.py              # 版本范围测试
 python3 scripts/configure-build.py fabric 1.21.1
 gradle -p adapters/fabric build               # 构建单个模组目标
 python3 scripts/check-artifact.py fabric 1.21.1 21 'adapters/fabric/build/libs/*.jar'
 ```
 
-核心测试会真实编译和运行各语言程序，`InteropTest` 让 9 种语言同时运行并互相调用。
+核心测试会真实编译和运行各语言程序，`InteropTest` 让 10 种语言同时运行并互相调用。
 
 ### 10.3 添加一种语言
 
-1. 在 `core/src/main/java/.../core/language/` 实现 `LanguageProvider`：`id()` 返回语言标识，`prepare()` 完成编译并返回 `LaunchCommand`（工作目录、参数、附加环境变量）。不要在这里访问游戏 API。
+1. 在 `core/src/main/java/.../core/language/` 实现 `LanguageProvider`：`id()` 返回语言标识，`prepare()` 完成编译并返回 `LaunchCommand`（工作目录、参数、附加环境变量）。不要在这里访问游戏 API。能预先翻译成 JVM 字节码的语言，用 `InJvm.attempt(...)` 先尝试 `LaunchCommand.inJvm(...)`，失败时回退为进程（见[协议文档](protocol.md#在-jvm-内运行的翻译器)），并在 `JvmRuntimeTest` 加入测试。
 2. 在 `LanguageProviders` 的构造函数中注册，并在 `detectLanguage()` 中加入自动识别的文件名。
 3. 在 `core/src/main/resources/sdk/<语言>/` 提供 SDK，实现 `on` / `run`、四个动作，以及 `handle` / `call` / `notify` / `publish`（等待回复时要处理收到的 `call`，避免互相调用死锁）。
 4. 在 `BuiltinLanguagesTest` 加入中文往返测试，在 `core/src/test/resources/interop/<语言>/` 加入互调测试程序，并把语言加入 `InteropTest.LANGUAGES`。

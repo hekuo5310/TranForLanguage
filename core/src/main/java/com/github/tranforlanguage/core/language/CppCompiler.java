@@ -38,6 +38,35 @@ public class CppCompiler {
             throw new IllegalStateException((c ? "C" : "C++") + " compilation interrupted", e);
         }
     }
+    /**
+     * C only: builds a single-threaded WASI module for in-JVM translation, or returns null without sources.
+     * Uses clang ({@code tranforlanguage.wasm.c.compiler}) with a WASI sysroot ({@code tranforlanguage.wasi.sysroot}).
+     */
+    File compileWasi(File dir) throws IOException, InterruptedException {
+        if (!c) throw new IllegalStateException("C++ programs are not translated to WebAssembly");
+        File[] sources = dir.listFiles((d, name) -> name.endsWith(".c"));
+        if (sources == null || sources.length == 0) return null;
+        Arrays.sort(sources);
+        File header = ProgramFiles.sdk(dir, "c/tranforlanguage.h");
+        ProgramFiles.sdk(dir, "c/tranforlanguage_rpc.h");
+        File rpc = ProgramFiles.sdk(dir, "c/rpc.c");
+        File module = new File(dir, ".tranforlanguage/program.wasm");
+        Files.createDirectories(module.getParentFile().toPath());
+        Files.deleteIfExists(module.toPath());
+        List<String> args = new ArrayList<>(Arrays.asList(System.getProperty("tranforlanguage.wasm.c.compiler", "clang"),
+            "--target=" + System.getProperty("tranforlanguage.wasm.c.target", "wasm32-wasi")));
+        String sysroot = System.getProperty("tranforlanguage.wasi.sysroot");
+        if (sysroot != null && !sysroot.isEmpty()) args.add("--sysroot=" + sysroot);
+        args.addAll(Arrays.asList("-O2", "-std=c11", "-I", header.getParent(), "-include", header.getAbsolutePath(),
+            "-o", module.getAbsolutePath()));
+        for (File source : sources) args.add(source.getAbsolutePath());
+        args.add(rpc.getAbsolutePath());
+        ProgramFiles.build(dir, args, 120);
+        if (!module.isFile()) throw new IOException("clang did not produce a WebAssembly module; see compile.log");
+        logger.info("C compiled to WebAssembly: " + sources.length + " source(s)");
+        return module;
+    }
+
     private File compileChecked(File dir, JsonObject configuration) throws IOException, InterruptedException {
         Files.createDirectories(dir.toPath());
         File[] sources = dir.listFiles((d, name) -> name.endsWith(c ? ".c" : ".cpp"));

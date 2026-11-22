@@ -197,7 +197,7 @@ func failAll(reason string) {
 func start() {
 	once.Do(func() {
 		go func() {
-			scanner := bufio.NewScanner(os.Stdin)
+			scanner := bufio.NewScanner(stdin())
 			scanner.Buffer(make([]byte, 64*1024), 16*1024*1024)
 			for scanner.Scan() {
 				var e Event

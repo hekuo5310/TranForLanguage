@@ -37,10 +37,8 @@ public final class ProgramRuntime implements AutoCloseable {
                 LaunchCommand command = languages.prepare(platform.directory(), platform.logger());
                 synchronized (this) {
                     if (command == null || closed || generation.get() != expected) return;
-                    ProcessBuilder builder = new ProcessBuilder(command.arguments()).directory(command.directory());
-                    builder.environment().putAll(command.environment());
-                    builder.environment().put("TRANFORLANGUAGE_PROGRAM_ID", id);
-                    Process process = builder.start();
+                    Process process = command.start(java.util.Collections.singletonMap("TRANFORLANGUAGE_PROGRAM_ID", id));
+                    if (command.inJvm()) platform.logger().info("Running translated program inside the server JVM");
                     Session next = new Session(process, expected);
                     session = next;
                     next.start();

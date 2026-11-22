@@ -3,7 +3,7 @@ version: '${project.version}'
 api-version: '1.13'
 main: com.github.tranforlanguage.TranForLanguage
 author: 'hekuo,Xiao-QDev'
-description: '在 Minecraft 服务端运行 C、C++、Python、Rust、JavaScript、Go、Ruby、PHP 和 Java 程序，并支持程序间互相调用'
+description: '在 Minecraft 服务端运行 C、C++、Python、Rust、JavaScript、Go、Ruby、PHP、Java 和 Lua 程序，并支持程序间互相调用'
 permissions:
   tranforlanguage.use:
     description: Allow using TranForLanguage commands

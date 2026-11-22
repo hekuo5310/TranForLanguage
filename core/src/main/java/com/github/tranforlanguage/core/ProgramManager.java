@@ -20,6 +20,8 @@ public final class ProgramManager implements AutoCloseable {
     private final ProgramBus bus;
     public ProgramManager(Platform platform) {
         this.platform = platform;
+        // Translators for in-JVM programs are downloaded once into a hidden folder next to the programs.
+        com.github.tranforlanguage.core.jvm.RuntimeLibraries.store(new java.io.File(platform.directory(), ".runtimes"));
         bus = new ProgramBus(new ProgramBus.Directory() {
             public ProgramBus.Endpoint find(String id) {
                 Entry entry = programs.get(id); ProgramRuntime runtime = entry == null ? null : entry.runtime;

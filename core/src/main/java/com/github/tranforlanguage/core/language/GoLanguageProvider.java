@@ -18,6 +18,8 @@ public final class GoLanguageProvider implements LanguageProvider {
         if (sources.length == 0) throw new IOException("Missing Go sources (*.go) in program directory");
         File sdk = ProgramFiles.sdk(directory, "go/go.mod").getParentFile();
         ProgramFiles.sdk(directory, "go/tranforlanguage.go");
+        ProgramFiles.sdk(directory, "go/stdin_native.go");
+        ProgramFiles.sdk(directory, "go/stdin_wasip1.go");
         File project = new File(directory, ".tranforlanguage/go-project");
         ProgramFiles.deleteTree(new File(project, "src"));
         File src = new File(project, "src"); Files.createDirectories(src.toPath());
@@ -60,15 +62,31 @@ public final class GoLanguageProvider implements LanguageProvider {
         ProgramFiles.build(directory, src, Arrays.asList(go, "mod", "edit",
             "-require=tranforlanguage@v0.0.0",
             "-replace=tranforlanguage=" + sdk.getAbsolutePath()), Collections.emptyMap(), 30);
+        LaunchCommand jvm = InJvm.attempt(configuration, logger, "Go", () -> {
+            File module = new File(project, "program.wasm");
+            Map<String, String> wasm = environment();
+            wasm.put("GOOS", "wasip1"); wasm.put("GOARCH", "wasm");
+            build(directory, src, go, module, wasm);
+            // The WASI build polls the server for input so goroutines keep running while it waits.
+            return InJvm.wasm(directory, module, logger, true);
+        });
+        if (jvm != null) return jvm;
         boolean windows = System.getProperty("os.name").toLowerCase(Locale.ROOT).contains("win");
         File executable = new File(project, windows ? "tranforlanguage_program.exe" : "tranforlanguage_program");
-        Files.deleteIfExists(executable.toPath());
-        Map<String, String> environment = new HashMap<>();
-        environment.put("GOWORK", "off"); environment.put("GOFLAGS", "-mod=mod"); environment.put("CGO_ENABLED", "0");
-        ProgramFiles.build(directory, src, Arrays.asList(go, "build",
-            "-o", executable.getAbsolutePath(), "."), environment, 300);
-        if (!executable.isFile()) throw new IOException("Go did not produce the program; see compile.log");
+        build(directory, src, go, executable, environment());
         logger.info("Go compilation complete: " + sources.length + " source(s)");
         return new LaunchCommand(directory, Collections.singletonList(executable.getAbsolutePath()));
+    }
+
+    private static Map<String, String> environment() {
+        Map<String, String> environment = new HashMap<>();
+        environment.put("GOWORK", "off"); environment.put("GOFLAGS", "-mod=mod"); environment.put("CGO_ENABLED", "0");
+        return environment;
+    }
+
+    private static void build(File directory, File src, String go, File output, Map<String, String> environment) throws Exception {
+        Files.deleteIfExists(output.toPath());
+        ProgramFiles.build(directory, src, Arrays.asList(go, "build", "-o", output.getAbsolutePath(), "."), environment, 300);
+        if (!output.isFile()) throw new IOException("Go did not produce the program; see compile.log");
     }
 }

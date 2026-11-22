@@ -19,6 +19,7 @@ public final class LanguageProviders {
         register(new RubyLanguageProvider());
         register(new PhpLanguageProvider());
         register(new JavaLanguageProvider());
+        register(new LuaLanguageProvider());
         register(new ProcessLanguageProvider());
         for (LanguageProvider provider : ServiceLoader.load(LanguageProvider.class, LanguageProvider.class.getClassLoader())) register(provider);
     }
@@ -62,6 +63,7 @@ public final class LanguageProviders {
             case "main.rb": return "ruby";
             case "main.php": return "php";
             case "Main.java": return "java";
+            case "main.lua": return "lua";
             default: return null;
         }
     }
