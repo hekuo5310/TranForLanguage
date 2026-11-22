@@ -37,7 +37,8 @@ public final class TranForLanguage {
 
     private static volatile Thread runner;
     private static PrintStream output() {
-        try { return new PrintStream(new FileOutputStream(FileDescriptor.out), false, "UTF-8"); }
+        // Captured once, so a later System.setOut in the program cannot redirect protocol lines.
+        try { return new PrintStream(System.out, false, "UTF-8"); }
         catch (UnsupportedEncodingException e) { throw new IllegalStateException(e); }
     }
 

@@ -10,10 +10,10 @@
 
 | 产物 | 目标 | 构建工具 |
 | --- | --- | --- |
-| `tranforlanguage-spigot-2.2.3.jar` | Spigot / 常规 Paper 分支，官方 API 1.8–26.3 | Maven |
-| `tranforlanguage-fabric-<游戏版本>-2.2.3.jar` | Fabric 1.20–26.3，逐版本构建；需要 Fabric Loader 0.17.0+ | Gradle + Loom |
-| `tranforlanguage-neoforge-<游戏版本>-2.2.3.jar` | NeoForge 1.21–26.3，逐版本构建 | Gradle + ModDevGradle |
-| `tranforlanguage-forge-<游戏版本>-2.2.3.jar` | Forge 1.20.x–1.21.x，按官方已发布版本构建 | Gradle + ForgeGradle |
+| `tranforlanguage-spigot-2.3.0.jar` | Spigot / 常规 Paper 分支，官方 API 1.8–26.3 | Maven |
+| `tranforlanguage-fabric-<游戏版本>-2.3.0.jar` | Fabric 1.20–26.3，逐版本构建；需要 Fabric Loader 0.17.0+ | Gradle + Loom |
+| `tranforlanguage-neoforge-<游戏版本>-2.3.0.jar` | NeoForge 1.21–26.3，逐版本构建 | Gradle + ModDevGradle |
+| `tranforlanguage-forge-<游戏版本>-2.3.0.jar` | Forge 1.20.x–1.21.x，按官方已发布版本构建 | Gradle + ForgeGradle |
 
 目标范围与运行实测是不同的检查。[兼容说明](docs/compatibility.md)列出版本矩阵、尚未接入的模组事件和验证边界。Spigot 1.8 之前及 Folia 尚未建立兼容保障。
 
@@ -25,7 +25,7 @@
 mvn clean verify
 ```
 
-安装 `target/tranforlanguage-spigot-2.2.3.jar` 到 `plugins/`。不再为同一插件维护 Maven / Gradle 两份构建。
+安装 `target/tranforlanguage-spigot-2.3.0.jar` 到 `plugins/`。不再为同一插件维护 Maven / Gradle 两份构建。
 
 ### Fabric / Forge / NeoForge
 
@@ -45,7 +45,7 @@ gradle -p adapters/forge clean build
 
 构建还需要目标游戏的 Java toolchain（17 / 21 / 25），见[版本锁文件](compatibility/versions.json)中的 `java` 与 `gradle` 字段。CI 自动安装这些 JDK 和正确的 Gradle。产物在相应 `adapters/<加载器>/build/libs/`，仅安装与服务器加载器及 Minecraft 版本完全一致的发行 JAR 到 `mods/`。Fabric 额外安装对应游戏版本的 Fabric API。
 
-也可从 GitHub Actions 下载按平台/游戏版本区分的产物。常规版本通过与项目版本一致的 `v*` 标签发布；本次 2.2.3 由 main 分支上带 `[release-v2.2.3]` 标记的提交在完整构建通过后自动创建标签并发布，不覆盖指向其他提交的标签。标记必须出现在最终推送到 main 的提交信息里，合并 PR 前请检查 GitHub 显示的提交信息；该版本不能通过手动推送标签发布。
+也可从 GitHub Actions 下载按平台/游戏版本区分的产物。常规版本通过与项目版本一致的 `v*` 标签发布；本次 2.3.0 由 main 分支上带 `[release-v2.3.0]` 标记的提交在完整构建通过后自动创建标签并发布，不覆盖指向其他提交的标签。标记必须出现在最终推送到 main 的提交信息里，合并 PR 前请检查 GitHub 显示的提交信息；该版本不能通过手动推送标签发布。
 
 ## 安装程序
 
@@ -167,7 +167,7 @@ public class Main {
 }
 ```
 
-目录下全部顶层 `.java` 文件与内置 SDK 一起用 `javac` 编译到 `.tranforlanguage/java-classes/`，再以**独立 JVM** 运行（与服务器 JVM 隔离）。默认使用服务器 JVM 同目录的 `javac` / `java`（不存在时用 `PATH`），可用 `-Dtranforlanguage.javac=` / `-Dtranforlanguage.java=` 指定；需要 JDK 8+。主类默认 `Main`，可在 `program.json` 用 `"mainClass": "com.example.Main"` 修改。见 [Java 示例](examples/java)。
+目录下全部顶层 `.java` 文件与内置 SDK 一起用 `javac` 编译到 `.tranforlanguage/java-classes/`；服务器为 Java 11+ 时改写字节码后在**服务器 JVM 内**运行（见下方[在服务器 JVM 内运行](#在服务器-jvm-内运行预先翻译的字节码)），否则以独立 JVM 运行。默认使用服务器 JVM 同目录的 `javac` / `java`（不存在时用 `PATH`），可用 `-Dtranforlanguage.javac=` / `-Dtranforlanguage.java=` 指定；需要 JDK 8+。主类默认 `Main`，可在 `program.json` 用 `"mainClass": "com.example.Main"` 修改。见 [Java 示例](examples/java)。
 
 ### 语言选择和其他语言
 
@@ -179,6 +179,24 @@ public class Main {
 
 `python` / `rust` / `javascript` / `ruby` / `php` 的 `entrypoint` 必须是程序目录内已有文件，分别默认 `main.py` / `main.rs` / `main.js` / `main.rb` / `main.php`；`c` / `cpp` / `go` / `java` 编译程序目录下全部对应顶层源文件。每个插件子目录运行独立进程，同目录仍只放一个程序入口；Rust 内置适配器面向源码入口，不接管用户已有 Cargo 工程。如需自定义 Cargo 依赖或其他语言，先自行构建后用原有 `process` 适配器启动。参见[协议与语言扩展](docs/protocol.md)。编译输出统一写入程序目录的 `compile.log`，`.tranforlanguage/` 是自动维护的构建缓存，不要存放手写代码。
 
+### 在服务器 JVM 内运行（预先翻译的字节码）
+
+2.3.0 起，C、Rust、Go、Java 和 Ruby 程序在**准备阶段一次性翻译成 JVM class 字节码**，启动时只加载已保存的类，在服务器 JVM 内运行，不再另起进程，也不会在每次启动时重新翻译。源码不变时，重载直接复用翻译结果。
+
+| 语言 | 翻译方式 | 要求 |
+| --- | --- | --- |
+| C | `clang --target=wasm32-wasi` 编译为 WebAssembly，再由 [Chicory](https://github.com/dylibso/chicory) 翻译为字节码 | 服务器 Java 11+；clang、lld、WASI sysroot（Debian/Ubuntu：`apt install clang lld wasi-libc libclang-rt-18-dev-wasm32`）。使用 `pkgConfig` 的程序保持独立进程 |
+| Rust | `cargo build --target wasm32-wasip1`，再由 Chicory 翻译 | Java 11+；`rustup target add wasm32-wasip1`。依赖原生代码的 crate 会自动回退为进程 |
+| Go | `GOOS=wasip1 GOARCH=wasm go build`，再由 Chicory 翻译 | Java 11+；Go 1.21+ |
+| Java | `javac` 编译后用 ASM 改写字节码：`System.in/out/err`、`System.exit`、`System.getenv`、`Runtime.exit/halt` 改为指向该程序自己的流、环境变量和退出码 | Java 11+ |
+| Ruby | JRuby 的 `jrubyc` 编译为 class，`require` / `require_relative` 加载编译后的类 | Java 21+；没有 `Gemfile`；不使用 `__FILE__` / `__dir__` / `$0` |
+
+C++、JavaScript、Python 和 PHP 仍以独立进程运行：WASI 的 C++ 标准库没有异常支持（SDK 依赖异常），Rhino 不支持 `class` / `async`，Python 3 与 PHP 没有维护中的字节码编译器。
+
+- 翻译器（Chicory、ASM、JRuby）**不打包进插件/模组 JAR**。某种语言第一次需要时，从 Maven Central 下载到程序目录下的 `.runtimes/`，逐个校验固定的 SHA-256，之后离线复用。可用 `-Dtranforlanguage.runtime.repositories=https://镜像1/,https://镜像2/` 指定镜像，`-Dtranforlanguage.runtimes=/路径` 指定存放位置。
+- `program.json` 的 `"runtime"` 选择运行方式：`"auto"`（默认，能翻译就在 JVM 内运行，缺少工具链、Java 版本过低或不支持时自动回退为独立进程，原因写入日志）、`"jvm"`（必须在 JVM 内运行，否则报错）、`"process"`（始终独立进程）。JVM 参数 `-Dtranforlanguage.runtime=process` 可为全部程序设置默认值。
+- 程序与服务器共享内存和 CPU，**没有进程隔离**：死循环或耗尽内存会影响服务器。停止程序时会中断它的线程并关闭它的输入输出；忽略中断的线程无法被强制结束。需要隔离的程序请设置 `"runtime": "process"`。
+
 ## 多语言插件共存
 
 在上面的程序目录下，为每个插件建立独立子目录：
@@ -187,9 +205,9 @@ public class Main {
 | --- | --- | --- |
 | `welcome` | `welcome/main.py` | 独立 Python 进程 |
 | `native` | `native/main.cpp` | 独立 C++ 进程 |
-| `tools` | `tools/main.c` | 独立 C 进程 |
-| `rules` | `rules/main.rs` | 独立 Rust 进程 |
-| `economy` | `economy/main.go` | 独立 Go 进程 |
+| `tools` | `tools/main.c` | 服务器 JVM 内（WebAssembly → 字节码），否则独立 C 进程 |
+| `rules` | `rules/main.rs` | 服务器 JVM 内（WebAssembly → 字节码），否则独立 Rust 进程 |
+| `economy` | `economy/main.go` | 服务器 JVM 内（WebAssembly → 字节码），否则独立 Go 进程 |
 | `greeter` | `greeter/main.js` | 独立 Node.js 进程 |
 | `@root` | 程序目录根部的 `main.cpp` 等入口 | 根目录程序，可与子目录程序同时运行 |
 
@@ -239,7 +257,7 @@ coins = call("economy", "balance", "Alex")   # "100"
 
 ## 程序权限与运行边界
 
-**只安装你信任的程序。这里没有进程沙箱或低权限执行环境。** 源码、`program.json`、编译配置和 `.tranforlanguage/` 缓存都应由服务端管理员控制。程序以服务器进程的宿主权限运行，可读写其能访问的文件并自行发起网络请求；`executeCommand` / `dispatchCommand` 按现有协议拥有游戏控制台权限。命令接口的操作员权限只保护管理命令，不约束被安装程序。Rust 首次构建还会执行 Cargo 依赖的构建步骤；请审核依赖并保留锁文件。
+**只安装你信任的程序。这里没有进程沙箱或低权限执行环境。** 源码、`program.json`、编译配置和 `.tranforlanguage/` 缓存都应由服务端管理员控制。程序以服务器进程的宿主权限运行，可读写其能访问的文件并自行发起网络请求；`executeCommand` / `dispatchCommand` 按现有协议拥有游戏控制台权限。命令接口的操作员权限只保护管理命令，不约束被安装程序。Rust 首次构建还会执行 Cargo 依赖的构建步骤；请审核依赖并保留锁文件。在服务器 JVM 内运行的程序与服务器共享内存和 CPU；其中 Java 和 Ruby 程序可通过反射等方式访问 JDK 的全部能力，WebAssembly 程序只能访问自己的程序目录。
 
 程序可请求广播、私信、控制台日志和控制台命令，所有游戏操作通过服务器线程执行。Spigot 保留 MiniMessage 格式，模组端当前使用纯文本。
 

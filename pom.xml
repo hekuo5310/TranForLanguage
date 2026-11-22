@@ -1,6 +1,6 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
-  <groupId>com.github.tranforlanguage</groupId><artifactId>tranforlanguage-spigot</artifactId><version>2.2.3</version>
+  <groupId>com.github.tranforlanguage</groupId><artifactId>tranforlanguage-spigot</artifactId><version>2.3.0</version>
   <name>TranForLanguage</name>
   <description>Run C, C++, Python, Rust, JavaScript, Go, Ruby, PHP and Java programs on Minecraft servers and let them call each other.</description>
   <properties>
@@ -27,6 +27,10 @@
     <dependency><groupId>com.google.guava</groupId><artifactId>guava</artifactId><version>31.1-jre</version><scope>provided</scope></dependency>
     <!-- PluginDescriptorTest uses YAML explicitly; keep the parser test-only and versioned. -->
     <dependency><groupId>org.yaml</groupId><artifactId>snakeyaml</artifactId><version>1.33</version><scope>test</scope></dependency>
+    <!-- In-JVM translators: compiled against, never bundled. RuntimeLibraries downloads the pinned jars on first use. -->
+    <dependency><groupId>com.dylibso.chicory</groupId><artifactId>compiler</artifactId><version>1.7.5</version><scope>provided</scope></dependency>
+    <dependency><groupId>com.dylibso.chicory</groupId><artifactId>wasi</artifactId><version>1.7.5</version><scope>provided</scope></dependency>
+    <dependency><groupId>org.ow2.asm</groupId><artifactId>asm</artifactId><version>9.9.1</version><scope>provided</scope></dependency>
   </dependencies>
   <build>
     <testResources><testResource><directory>core/src/test/resources</directory></testResource></testResources>
@@ -36,9 +40,17 @@
         <execution><id>core</id><phase>generate-sources</phase><goals><goal>add-source</goal></goals><configuration><sources><source>core/src/main/java</source></sources></configuration></execution>
         <execution><id>tests</id><phase>generate-test-sources</phase><goals><goal>add-test-source</goal></goals><configuration><sources><source>core/src/test/java</source></sources></configuration></execution>
       </executions></plugin>
-      <plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-compiler-plugin</artifactId><version>3.13.0</version></plugin>
+      <plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-compiler-plugin</artifactId><version>3.13.0</version><executions>
+        <!-- Glue for the in-JVM translators targets Java 11 like the libraries it drives; it only loads on Java 11+. -->
+        <execution><id>engine</id><phase>compile</phase><goals><goal>compile</goal></goals><configuration>
+          <release>11</release><compileSourceRoots><compileSourceRoot>${project.basedir}/core/src/engine/java</compileSourceRoot></compileSourceRoots>
+        </configuration></execution>
+      </executions></plugin>
       <plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-surefire-plugin</artifactId><version>3.5.3</version><configuration>
-        <systemPropertyVariables><project.version>${project.version}</project.version></systemPropertyVariables>
+        <systemPropertyVariables><project.version>${project.version}</project.version>
+          <!-- One download of the in-JVM translators for all tests. -->
+          <tranforlanguage.runtimes>${project.build.directory}/runtimes</tranforlanguage.runtimes>
+        </systemPropertyVariables>
       </configuration></plugin>
       <plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-shade-plugin</artifactId><version>3.6.0</version><executions><execution><phase>package</phase><goals><goal>shade</goal></goals><configuration>
         <createDependencyReducedPom>false</createDependencyReducedPom>

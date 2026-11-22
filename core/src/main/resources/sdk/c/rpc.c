@@ -1,20 +1,19 @@
 /* Built with the C SDK (as C11) and the C++ SDK (as C++17); keep it valid in both. */
 #include "tranforlanguage_rpc.h"
-#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-pthread_mutex_t tranforlanguage_output_mutex = PTHREAD_MUTEX_INITIALIZER;
-#ifdef __cplusplus
-}
-#endif
-
+#if defined(__wasi__) && !defined(_REENTRANT)
+/* Single-threaded WebAssembly (in-JVM mode): there is no second thread to exclude. */
+void tranforlanguage_lock_output(void) {}
+void tranforlanguage_unlock_output(void) {}
+#else
+#include <pthread.h>
+static pthread_mutex_t tranforlanguage_output_mutex = PTHREAD_MUTEX_INITIALIZER;
 void tranforlanguage_lock_output(void) { pthread_mutex_lock(&tranforlanguage_output_mutex); }
 void tranforlanguage_unlock_output(void) { pthread_mutex_unlock(&tranforlanguage_output_mutex); }
+#endif
 
 char *tranforlanguage_strdup(const char *value) {
     size_t n = strlen(value ? value : "");

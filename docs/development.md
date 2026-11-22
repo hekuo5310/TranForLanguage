@@ -477,7 +477,7 @@ python3 scripts/check-artifact.py fabric 1.21.1 21 'adapters/fabric/build/libs/*
 
 ### 10.3 添加一种语言
 
-1. 在 `core/src/main/java/.../core/language/` 实现 `LanguageProvider`：`id()` 返回语言标识，`prepare()` 完成编译并返回 `LaunchCommand`（工作目录、参数、附加环境变量）。不要在这里访问游戏 API。
+1. 在 `core/src/main/java/.../core/language/` 实现 `LanguageProvider`：`id()` 返回语言标识，`prepare()` 完成编译并返回 `LaunchCommand`（工作目录、参数、附加环境变量）。不要在这里访问游戏 API。能预先翻译成 JVM 字节码的语言，用 `InJvm.attempt(...)` 先尝试 `LaunchCommand.inJvm(...)`，失败时回退为进程（见[协议文档](protocol.md#在-jvm-内运行的翻译器)），并在 `JvmRuntimeTest` 加入测试。
 2. 在 `LanguageProviders` 的构造函数中注册，并在 `detectLanguage()` 中加入自动识别的文件名。
 3. 在 `core/src/main/resources/sdk/<语言>/` 提供 SDK，实现 `on` / `run`、四个动作，以及 `handle` / `call` / `notify` / `publish`（等待回复时要处理收到的 `call`，避免互相调用死锁）。
 4. 在 `BuiltinLanguagesTest` 加入中文往返测试，在 `core/src/test/resources/interop/<语言>/` 加入互调测试程序，并把语言加入 `InteropTest.LANGUAGES`。

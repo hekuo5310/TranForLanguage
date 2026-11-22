@@ -6,7 +6,7 @@ on:
   pull_request:
   workflow_dispatch:
 concurrency:
-  group: build-${{ github.workflow }}-${{ (github.event_name == 'push' && github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[release-v2.2.3]') && github.sha) || github.event.pull_request.number || github.ref }}
+  group: build-${{ github.workflow }}-${{ (github.event_name == 'push' && github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[release-v2.3.0]') && github.sha) || github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 permissions:
   contents: read
@@ -39,8 +39,15 @@ jobs:
           ruby --version
           php --version
           javac -version
+      - name: Install WebAssembly toolchains for in-JVM programs
+        if: matrix.api == '1.8'
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q clang lld wasi-libc libclang-rt-18-dev-wasm32
+          rustup target add wasm32-wasip1
+          clang --target=wasm32-wasi -x c -o /tmp/probe.wasm - <<< 'int main(void){return 0;}'
       - name: Compile against exact Spigot API
-        run: mvn -s .github/maven-settings.xml -U -B -ntp verify -Dspigot.version=${{ matrix.api }}-R0.1-SNAPSHOT -DskipTests=${{ matrix.api != '1.8' }}
+        run: mvn -s .github/maven-settings.xml -U -B -ntp verify -Dspigot.version=${{ matrix.api }}-R0.1-SNAPSHOT -DskipTests=${{ matrix.api != '1.8' }} -Dtranforlanguage.test.requireJvm=true
       - name: Verify plugin metadata and Java 8 artifact
         run: python3 scripts/check-artifact.py spigot '${{ matrix.api }}' 8 'target/tranforlanguage-spigot-*.jar'
       - uses: actions/upload-artifact@v4
@@ -153,12 +160,12 @@ jobs:
             ${{ runner.temp }}/tfl-smoke/**/compile.log
           if-no-files-found: warn
   release:
-    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'push' && github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[release-v2.2.3]'))
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'push' && github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[release-v2.3.0]'))
     needs: [spigot, mods, smoke]
     permissions:
       contents: write
     concurrency:
-      group: publish-${{ github.repository }}-${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v2.2.3' }}
+      group: publish-${{ github.repository }}-${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v2.3.0' }}
       cancel-in-progress: false
     runs-on: ubuntu-latest
     steps:
@@ -172,11 +179,11 @@ jobs:
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             tag="${GITHUB_REF#refs/tags/}"
             [[ "$tag" == "v$version" ]] || { echo "Tag does not match project version" >&2; exit 1; }
-            [[ "$tag" != "v2.2.3" ]] || { echo "v2.2.3 must be published from its verified main merge" >&2; exit 1; }
+            [[ "$tag" != "v2.3.0" ]] || { echo "v2.3.0 must be published from its verified main merge" >&2; exit 1; }
           else
             # One-time publication explicitly requested for this release merge.
-            [[ "$version" == "2.2.3" ]] || { echo "Unexpected release version" >&2; exit 1; }
-            tag="v2.2.3"
+            [[ "$version" == "2.3.0" ]] || { echo "Unexpected release version" >&2; exit 1; }
+            tag="v2.3.0"
           fi
           tag_target() {
             git ls-remote --tags origin "refs/tags/$tag" "refs/tags/$tag^{}" |

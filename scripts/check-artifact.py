@@ -19,7 +19,8 @@ with zipfile.ZipFile(files[0]) as jar:
     names = set(jar.namelist())
     for resource in ['cpp/tranforlanguage.hpp', 'c/tranforlanguage.h', 'c/tranforlanguage_rpc.h', 'c/rpc.c', 'python/bootstrap.py', 'python/tranforlanguage.py',
                      'rust/Cargo.toml', 'rust/src/lib.rs', 'javascript/tranforlanguage.js', 'go/go.mod', 'go/tranforlanguage.go',
-                     'ruby/tranforlanguage.rb', 'php/tranforlanguage.php', 'java/tranforlanguage/TranForLanguage.java']:
+                     'go/stdin_native.go', 'go/stdin_wasip1.go', 'ruby/tranforlanguage.rb', 'php/tranforlanguage.php',
+                     'java/tranforlanguage/TranForLanguage.java', 'java/tranforlanguage/ProgramSystem.java']:
         assert 'sdk/' + resource in names, 'Missing bundled SDK: ' + resource
     assert 'LICENSE' in names, 'Missing project license'
     assert 'com/github/tranforlanguage/core/ProgramRuntime.class' in names
@@ -27,9 +28,16 @@ with zipfile.ZipFile(files[0]) as jar:
     assert 'com/github/tranforlanguage/core/ProgramBus.class' in names
     assert not any(name.endswith('/MemoryOptimizer.class') or name.endswith('/SmartThreadOptimizer.class') for name in names)
     assert 'com/github/tranforlanguage/core/language/LanguageProvider.class' in names
+    engine = 'com/github/tranforlanguage/core/jvm/engine/'
     majors = {struct.unpack('>H', jar.read(name)[6:8])[0] for name in names
-              if name.endswith('.class') and name.startswith('com/github/tranforlanguage/')}
+              if name.endswith('.class') and name.startswith('com/github/tranforlanguage/') and not name.startswith(engine)}
     assert max(majors) <= int(java) + 44, (java, majors)
+    # The in-JVM translator glue targets Java 11 and is only loaded on Java 11+ servers.
+    engine_majors = {struct.unpack('>H', jar.read(name)[6:8])[0] for name in names
+                     if name.endswith('.class') and name.startswith(engine)}
+    assert engine_majors and max(engine_majors) <= 55, engine_majors
+    assert not any(name.startswith(('com/dylibso/', 'org/jruby/', 'org/objectweb/asm/')) for name in names), \
+        'translator libraries are downloaded at runtime, never bundled'
     if loader == 'spigot':
         for name in ['adventure', 'examination', 'gson', 'annotations']:
             assert f'META-INF/licenses/{name}.txt' in names, f'Missing {name} license'
