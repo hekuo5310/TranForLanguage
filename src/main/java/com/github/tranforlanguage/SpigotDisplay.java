@@ -34,8 +34,7 @@ final class SpigotDisplay {
             Class<?> action = nmsClass("PacketPlayOutTitle$EnumTitleAction");
             Constructor<?> packet = nmsClass("PacketPlayOutTitle").getConstructor(action, component);
             send(player, packet.newInstance(enumConstant(action, "TITLE"), component(title)));
-            if (subtitle != null && !subtitle.isEmpty())
-                send(player, packet.newInstance(enumConstant(action, "SUBTITLE"), component(subtitle)));
+            send(player, packet.newInstance(enumConstant(action, "SUBTITLE"), component(subtitle)));
         } catch (ReflectiveOperationException failure) {
             throw new IllegalArgumentException("titles are not supported by this server version", failure);
         }
@@ -98,15 +97,24 @@ final class SpigotDisplay {
                 Field field;
                 try { field = packetType.getDeclaredField("footer"); }
                 catch (NoSuchFieldException renamed) {
-                    // 1.8 names both components a/b; the footer is the second one.
+                    // 1.8 names both components a/b; identify the header by identity, then use the other field.
                     List<Field> candidates = new ArrayList<>();
-                    for (Field candidate : packetType.getDeclaredFields())
-                        if (candidate.getType().isAssignableFrom(component)) candidates.add(candidate);
-                    if (candidates.size() < 2) throw renamed;
-                    field = candidates.get(1);
+                    for (Field candidate : packetType.getDeclaredFields()) {
+                        if (!componentField(candidate.getType(), component)) continue;
+                        candidate.setAccessible(true);
+                        candidates.add(candidate);
+                    }
+                    Field headerField = null;
+                    for (Field candidate : candidates)
+                        if (candidate.get(packet) == headerComponent) { headerField = candidate; break; }
+                    if (headerField == null) throw renamed;
+                    field = null;
+                    for (Field candidate : candidates)
+                        if (candidate != headerField) { field = candidate; break; }
+                    if (field == null) throw renamed;
                 }
                 field.setAccessible(true);
-                field.set(packet, footerComponent);
+                field.set(packet, footerValue(field, footerComponent, footer));
             }
             send(player, packet);
         } catch (ReflectiveOperationException failure) {
@@ -128,6 +136,21 @@ final class SpigotDisplay {
         } catch (ReflectiveOperationException failure) {
             throw new IllegalArgumentException("ping is not supported by this server version", failure);
         }
+    }
+
+    private static boolean componentField(Class<?> type, Class<?> component) {
+        if (type.isAssignableFrom(component)) return true;
+        return type.isArray() && type.getComponentType().getName().equals("net.md_5.bungee.api.chat.BaseComponent");
+    }
+
+    private static Object footerValue(Field field, Object component, String text) throws ReflectiveOperationException {
+        if (field.getType().isAssignableFrom(component.getClass())) return component;
+        if (field.getType().isArray()
+            && field.getType().getComponentType().getName().equals("net.md_5.bungee.api.chat.BaseComponent")) {
+            Class<?> textComponent = Class.forName("net.md_5.bungee.api.chat.TextComponent");
+            return textComponent.getMethod("fromLegacyText", String.class).invoke(null, text == null ? "" : text);
+        }
+        return component;
     }
 
     private static Object component(String text) throws ReflectiveOperationException {

@@ -9,6 +9,7 @@ import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Event;
 import org.bukkit.event.EventPriority;
+import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryView;
@@ -40,6 +41,7 @@ import java.util.jar.JarFile;
 final class BukkitEventBridge {
     private static final Gson GSON = new GsonBuilder().disableHtmlEscaping().create();
     private static final int MAX_ITEMS = 100;
+    private static final int MAX_RESULT_ITEMS = 10000;
     private static final int MAX_DEPTH = 3;
     private static final Set<String> FIELDS = new HashSet<>(Arrays.asList(
         "player", "players", "whoClicked", "entity", "damager", "victim", "target", "owner", "attacker",
@@ -66,12 +68,14 @@ final class BukkitEventBridge {
     /** Registers one monitor listener per concrete Bukkit event; returns the number registered. */
     static int register(Plugin plugin, Listener listener, java.util.function.Consumer<Event> consumer) {
         int count = 0;
+        Set<HandlerList> handlers = Collections.newSetFromMap(new IdentityHashMap<HandlerList, Boolean>());
         ClassLoader loader = Bukkit.class.getClassLoader();
         if (loader == null) loader = plugin.getClass().getClassLoader();
         for (String name : eventClassNames()) {
             try {
                 Class<?> type = Class.forName(name, false, loader);
                 if (!Event.class.isAssignableFrom(type) || Modifier.isAbstract(type.getModifiers())) continue;
+                if (!claim(type, handlers)) continue;
                 @SuppressWarnings("unchecked")
                 Class<? extends Event> event = (Class<? extends Event>) type;
                 Bukkit.getPluginManager().registerEvent(event, listener, EventPriority.MONITOR,
@@ -82,6 +86,16 @@ final class BukkitEventBridge {
             }
         }
         return count;
+    }
+
+    /** Claims the event's actual handler list; subclasses sharing it are not registered twice. */
+    static boolean claim(Class<?> type, Set<HandlerList> handlers) {
+        try {
+            HandlerList list = (HandlerList) type.getMethod("getHandlerList").invoke(null);
+            return list != null && handlers.add(list);
+        } catch (ReflectiveOperationException | RuntimeException unavailable) {
+            return false;
+        }
     }
 
     /** The event class simple name as the first argument and a JSON object as the second. */
@@ -136,6 +150,14 @@ final class BukkitEventBridge {
     }
 
     static JsonElement convert(Object value, int depth) {
+        return convert(value, depth, MAX_ITEMS, false);
+    }
+
+    static JsonElement convertComplete(Object value, int depth) {
+        return convert(value, depth, MAX_RESULT_ITEMS, true);
+    }
+
+    private static JsonElement convert(Object value, int depth, int maxItems, boolean failOnOverflow) {
         if (value == null) return JsonNull.INSTANCE;
         if (value instanceof JsonElement) return (JsonElement) value;
         if (value instanceof String) return new JsonPrimitive((String) value);
@@ -254,8 +276,12 @@ final class BukkitEventBridge {
             JsonArray entries = new JsonArray();
             int count = 0;
             for (String entry : t.getEntries()) {
-                if (count++ >= MAX_ITEMS) break;
+                if (count >= maxItems) {
+                    if (failOnOverflow) throw new IllegalArgumentException("result exceeds " + maxItems + " items");
+                    break;
+                }
                 entries.add(entry);
+                count++;
             }
             team.add("entries", entries);
             return team;
@@ -311,8 +337,12 @@ final class BukkitEventBridge {
             JsonObject map = new JsonObject();
             int count = 0;
             for (Map.Entry<?, ?> item : ((Map<?, ?>) value).entrySet()) {
-                if (count++ >= MAX_ITEMS) break;
-                map.add(String.valueOf(item.getKey()), convert(item.getValue(), depth + 1));
+                if (count >= maxItems) {
+                    if (failOnOverflow) throw new IllegalArgumentException("result exceeds " + maxItems + " items");
+                    break;
+                }
+                map.add(String.valueOf(item.getKey()), convert(item.getValue(), depth + 1, maxItems, failOnOverflow));
+                count++;
             }
             return map;
         }
@@ -320,15 +350,21 @@ final class BukkitEventBridge {
             JsonArray array = new JsonArray();
             int count = 0;
             for (Object item : (Iterable<?>) value) {
-                if (count++ >= MAX_ITEMS) break;
-                array.add(convert(item, depth + 1));
+                if (count >= maxItems) {
+                    if (failOnOverflow) throw new IllegalArgumentException("result exceeds " + maxItems + " items");
+                    break;
+                }
+                array.add(convert(item, depth + 1, maxItems, failOnOverflow));
+                count++;
             }
             return array;
         }
         if (depth < MAX_DEPTH && value.getClass().isArray()) {
+            int total = Array.getLength(value);
+            if (failOnOverflow && total > maxItems) throw new IllegalArgumentException("result exceeds " + maxItems + " items");
             JsonArray array = new JsonArray();
-            int length = Math.min(Array.getLength(value), MAX_ITEMS);
-            for (int i = 0; i < length; i++) array.add(convert(Array.get(value, i), depth + 1));
+            int length = Math.min(total, maxItems);
+            for (int i = 0; i < length; i++) array.add(convert(Array.get(value, i), depth + 1, maxItems, failOnOverflow));
             return array;
         }
         String text = value.toString();

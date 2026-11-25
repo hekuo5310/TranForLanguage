@@ -6,7 +6,7 @@ import org.bukkit.event.Cancellable;
 import org.bukkit.event.Event;
 import org.bukkit.event.HandlerList;
 import org.junit.Test;
-
+import java.util.*;
 import static org.junit.Assert.*;
 
 /** The generic event payload is built without a running server. */
@@ -24,7 +24,23 @@ public class BukkitEventBridgeTest {
         assertEquals(json.toString(), JsonParser.parseString(envelope[1]).toString());
     }
 
-    public static final class SampleEvent extends Event implements Cancellable {
+    @Test public void sharedHandlerListsAreClaimedOnce() {
+        Set<HandlerList> handlers = Collections.newSetFromMap(new IdentityHashMap<HandlerList, Boolean>());
+        assertTrue(BukkitEventBridge.claim(SampleEvent.class, handlers));
+        assertFalse(BukkitEventBridge.claim(SampleChildEvent.class, handlers));
+    }
+
+    @Test public void eventPayloadTruncatesButInvokeResultRejectsOverflow() {
+        List<String> values = new ArrayList<>();
+        for (int i = 0; i < 101; i++) values.add("v" + i);
+        assertEquals(100, BukkitEventBridge.convert(values, 0).getAsJsonArray().size());
+        assertEquals(101, BukkitEventBridge.convertComplete(values, 0).getAsJsonArray().size());
+        for (int i = 101; i <= 10000; i++) values.add("v" + i);
+        try { BukkitEventBridge.convertComplete(values, 0); fail(); }
+        catch (IllegalArgumentException expected) { assertTrue(expected.getMessage().contains("10000")); }
+    }
+
+    public static class SampleEvent extends Event implements Cancellable {
         private static final HandlerList HANDLERS = new HandlerList();
         private boolean cancelled;
         public String getMessage() { return "hello"; }
@@ -34,4 +50,6 @@ public class BukkitEventBridgeTest {
         @Override public HandlerList getHandlers() { return HANDLERS; }
         public static HandlerList getHandlerList() { return HANDLERS; }
     }
+
+    public static final class SampleChildEvent extends SampleEvent { }
 }

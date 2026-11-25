@@ -11,6 +11,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
+import org.bukkit.plugin.Plugin;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 
@@ -18,6 +19,7 @@ import java.util.*;
 final class SpigotServerApi {
     private static final Gson GSON = new Gson();
     private final Map<UUID, Object> bossBars = new HashMap<>();
+    private final Set<String> pluginChannels = new LinkedHashSet<>();
 
     String call(String method, List<String> values) throws Exception {
         ServerArgs a = new ServerArgs(method, values);
@@ -150,6 +152,11 @@ final class SpigotServerApi {
             }
             case "setWeather": {
                 World w = world(a.text(0, "world"));
+                Integer duration = null;
+                if (a.has(2)) {
+                    duration = a.integer(2, "duration");
+                    if (duration < 0) throw new IllegalArgumentException("setWeather: duration must not be negative");
+                }
                 String weather = a.text(1, "weather").trim().toLowerCase(Locale.ROOT);
                 switch (weather) {
                     case "clear": w.setStorm(false); w.setThundering(false); break;
@@ -157,9 +164,7 @@ final class SpigotServerApi {
                     case "thunder": w.setStorm(true); w.setThundering(true); break;
                     default: throw new IllegalArgumentException("unknown weather: " + a.text(1, "weather"));
                 }
-                if (a.has(2)) {
-                    int duration = a.integer(2, "duration");
-                    if (duration < 0) throw new IllegalArgumentException("setWeather: duration must not be negative");
+                if (duration != null) {
                     w.setWeatherDuration(duration);
                     w.setThunderDuration(duration);
                 }
@@ -351,25 +356,37 @@ final class SpigotServerApi {
                 WorldBorder border = w.getWorldBorder();
                 double size = a.decimal(1, "size");
                 if (size <= 0) throw new IllegalArgumentException("setWorldBorder: size must be positive");
-                border.setSize(size);
-                if (a.has(2)) {
-                    double centerX = a.decimal(2, "centerX");
-                    double centerZ = a.decimal(3, "centerZ");
-                    border.setCenter(centerX, centerZ);
+                Double centerX = null, centerZ = null;
+                if (a.has(2) || a.has(3)) {
+                    if (!a.has(2) || !a.has(3))
+                        throw new IllegalArgumentException("setWorldBorder: centerX and centerZ must be provided together");
+                    centerX = a.decimal(2, "centerX");
+                    centerZ = a.decimal(3, "centerZ");
                 }
-                if (a.has(4)) border.setWarningDistance(a.integer(4, "warningDistance"));
+                Integer warningDistance = a.has(4) ? a.integer(4, "warningDistance") : null;
+                Double damageAmount = null;
                 if (a.has(5)) {
-                    double damage = a.decimal(5, "damageAmount");
-                    if (damage < 0) throw new IllegalArgumentException("setWorldBorder: damageAmount must not be negative");
-                    border.setDamageAmount(damage);
+                    damageAmount = a.decimal(5, "damageAmount");
+                    if (damageAmount < 0)
+                        throw new IllegalArgumentException("setWorldBorder: damageAmount must not be negative");
                 }
+                border.setSize(size);
+                if (centerX != null) border.setCenter(centerX, centerZ);
+                if (warningDistance != null) border.setWarningDistance(warningDistance);
+                if (damageAmount != null) border.setDamageAmount(damageAmount);
                 return "";
             }
             case "sendPluginMessage": {
                 Player p = player(a);
                 String channel = a.text(1, "channel").trim();
                 if (channel.isEmpty()) throw new IllegalArgumentException("sendPluginMessage: channel must not be empty");
-                p.sendPluginMessage(TranForLanguage.getInstance(), channel, a.text(2, "data", "").getBytes(StandardCharsets.UTF_8));
+                Plugin plugin = TranForLanguage.getInstance();
+                if (plugin == null) throw new IllegalStateException("plugin is not enabled");
+                if (!pluginChannels.contains(channel)) {
+                    p.getServer().getMessenger().registerOutgoingPluginChannel(plugin, channel);
+                    pluginChannels.add(channel);
+                }
+                p.sendPluginMessage(plugin, channel, a.text(2, "data", "").getBytes(StandardCharsets.UTF_8));
                 return "";
             }
             case "setPlayerTime": {
@@ -588,7 +605,10 @@ final class SpigotServerApi {
             Object style = enumValue(styleType, styleName);
             Object previous = bossBars.remove(player.getUniqueId());
             if (previous != null) barType.getMethod("removePlayer", Player.class).invoke(previous, player);
-            Object bar = Bukkit.class.getMethod("createBossBar", String.class, colorType, styleType).invoke(null, title, color, style);
+            Class<?> flagType = Class.forName("org.bukkit.boss.BarFlag");
+            Object flags = java.lang.reflect.Array.newInstance(flagType, 0);
+            Object bar = Bukkit.class.getMethod("createBossBar", String.class, colorType, styleType, flags.getClass())
+                .invoke(null, title, color, style, flags);
             barType.getMethod("setProgress", double.class).invoke(bar, progress);
             barType.getMethod("addPlayer", Player.class).invoke(bar, player);
             return bar;
@@ -659,6 +679,10 @@ final class SpigotServerApi {
     private static double maxHealth(Player player) { return player.getMaxHealth(); }
 
     void clear() {
+        Plugin plugin = TranForLanguage.getInstance();
+        if (plugin != null) for (String channel : pluginChannels)
+            plugin.getServer().getMessenger().unregisterOutgoingPluginChannel(plugin, channel);
+        pluginChannels.clear();
         bossBars.clear();
         BukkitInvoker.clear();
     }

@@ -144,6 +144,7 @@ public class ProgramManagerTest {
         write("managed/program.json", "{\"repository\":\"" + upstream.toPath().toUri() + "\",\"updateInterval\":1}");
         manager.reload().get(120, TimeUnit.SECONDS);
         assertEquals("RUNNING", manager.statuses().get(0).state);
+        assertTrue(ProgramRepository.ready(new File(platform.dir, "managed")));
         await(() -> platform.messages.contains("repo:v1"));
 
         write(upstream, "main.py", "from tranforlanguage import broadcast,run\nbroadcast('repo:v2')\nrun()\n");
@@ -164,6 +165,44 @@ public class ProgramManagerTest {
         String manifest = new String(Files.readAllBytes(new File(platform.dir, "managed/program.json").toPath()), StandardCharsets.UTF_8);
         assertTrue(manifest, manifest.contains("\"repository\""));
         assertTrue(manifest, manifest.contains("\"language\""));
+
+        write(upstream, "program.json", "{broken");
+        git(upstream, "add", "program.json");
+        git(upstream, "commit", "-q", "-m", "broken manifest");
+        try { manager.update("managed").get(60, TimeUnit.SECONDS); fail(); }
+        catch (ExecutionException expected) { assertTrue(expected.toString(), expected.toString().contains("Invalid program.json")); }
+        manifest = new String(Files.readAllBytes(new File(platform.dir, "managed/program.json").toPath()), StandardCharsets.UTF_8);
+        assertTrue("An invalid upstream manifest must not destroy the local manifest", manifest.contains("\"repository\""));
+
+        write(upstream, "program.json", "{\"language\":\"python\"}");
+        write(upstream, "main.py", "from tranforlanguage import broadcast,run\nbroadcast('repo:v4')\nrun()\n");
+        git(upstream, "add", ".");
+        git(upstream, "commit", "-q", "-m", "v4");
+        platform.messages.clear();
+        manager.update("managed").get(60, TimeUnit.SECONDS);
+        await(() -> platform.messages.contains("repo:v4"));
+    }
+    @Test public void failedInitialCheckoutIsRetriedByReload() throws Exception {
+        File upstream = temp.newFolder("late upstream");
+        write("late/program.json", "{\"repository\":\"" + upstream.toPath().toUri() + "\",\"updateInterval\":0}");
+        try { manager.reload().get(30, TimeUnit.SECONDS); fail(); }
+        catch (ExecutionException expected) { }
+        File directory = new File(platform.dir, "late");
+        assertFalse(ProgramRepository.ready(directory));
+
+        git(upstream, "init", "-q");
+        git(upstream, "config", "user.email", "tfl@example.invalid");
+        git(upstream, "config", "user.name", "TranForLanguage Test");
+        git(upstream, "config", "commit.gpgsign", "false");
+        write(upstream, "program.json", "{\"language\":\"python\"}");
+        write(upstream, "main.py", "from tranforlanguage import broadcast,run\nbroadcast('late:ok')\nrun()\n");
+        git(upstream, "add", ".");
+        git(upstream, "commit", "-q", "-m", "late");
+
+        manager.reload("late").get(60, TimeUnit.SECONDS);
+        assertTrue(ProgramRepository.ready(directory));
+        await(() -> platform.messages.contains("late:ok"));
+        assertEquals("RUNNING", manager.statuses().get(0).state);
     }
     @Test public void bukkitEventStreamRequiresExplicitSubscription() throws Exception {
         write("generic/program.json", "{\"language\":\"python\",\"events\":[\"BukkitEvent\"]}");

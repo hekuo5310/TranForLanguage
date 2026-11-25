@@ -15,6 +15,7 @@ import java.util.regex.Pattern;
  */
 final class ProgramRepository {
     static final long DEFAULT_INTERVAL_SECONDS = 3600;
+    private static final String READY_MARKER = ".tranforlanguage/repository-ready";
     private static final int INIT_TIMEOUT_SECONDS = 60;
     private static final int FETCH_TIMEOUT_SECONDS = 120;
     private static final int SHORT_TIMEOUT_SECONDS = 60;
@@ -68,6 +69,22 @@ final class ProgramRepository {
         return new File(directory, ".git").exists();
     }
 
+    /** A successful checkout marker; .git alone is not enough after a failed first fetch. */
+    static boolean ready(File directory) {
+        return new File(directory, READY_MARKER).isFile();
+    }
+
+    private static void markReady(File directory) throws IOException {
+        File marker = new File(directory, READY_MARKER);
+        Files.createDirectories(marker.getParentFile().toPath());
+        Files.write(marker.toPath(), new byte[0]);
+    }
+
+    private static void clearReady(File directory) {
+        try { Files.deleteIfExists(new File(directory, READY_MARKER).toPath()); }
+        catch (IOException ignored) { }
+    }
+
     /** The URL without any embedded credentials, for log messages. */
     String displayUrl() {
         return redact(url);
@@ -103,13 +120,27 @@ final class ProgramRepository {
         run(directory, FETCH_TIMEOUT_SECONDS, "fetch", "--force", "--prune", "origin", activeBranch == null ? "HEAD" : activeBranch);
         String target = run(directory, SHORT_TIMEOUT_SECONDS, "rev-parse", "FETCH_HEAD^{commit}").trim();
         if (target.isEmpty()) throw new IOException("git fetch did not report a commit");
-        if (target.equals(previous)) return false;
+        if (target.equals(previous) && ready(directory)) return false;
 
         boolean manifestInRepository = !run(directory, SHORT_TIMEOUT_SECONDS,
             "ls-tree", "--name-only", target, "--", "program.json").trim().isEmpty();
+        if (manifestInRepository) {
+            // Validate the incoming manifest before touching the working tree; a broken upstream
+            // program.json must not make every later fetch fail on the local copy.
+            parseManifest(run(directory, SHORT_TIMEOUT_SECONDS, "show", target + ":program.json")
+                .getBytes(StandardCharsets.UTF_8));
+        }
         // reset --hard updates every tracked file; the merged manifest is written back afterwards.
-        run(directory, SHORT_TIMEOUT_SECONDS, "reset", "--hard", target);
-        restoreManifest(directory, localManifest, local, activeUrl, activeBranch, manifestInRepository);
+        clearReady(directory);
+        try {
+            run(directory, SHORT_TIMEOUT_SECONDS, "reset", "--hard", target);
+            restoreManifest(directory, localManifest, local, activeUrl, activeBranch, manifestInRepository);
+        } catch (IOException failure) {
+            if (localManifest.length != 0) try { Files.write(manifest.toPath(), localManifest); }
+            catch (IOException ignored) { }
+            throw failure;
+        }
+        markReady(directory);
         return true;
     }
 

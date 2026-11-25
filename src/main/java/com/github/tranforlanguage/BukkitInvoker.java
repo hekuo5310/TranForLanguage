@@ -45,7 +45,7 @@ final class BukkitInvoker {
     static void openGui(Player player, String id) {
         Inventory inventory = GUIS.get(id);
         if (inventory == null) throw new IllegalArgumentException("unknown gui: " + id);
-        player.openInventory(inventory);
+        if (player.openInventory(inventory) == null) throw new IllegalArgumentException("openGui was cancelled");
     }
 
     static void removeGui(String id) {
@@ -79,14 +79,20 @@ final class BukkitInvoker {
             item.setItemMeta(meta);
         } catch (ClassNotFoundException | NoSuchMethodException olderServer) {
             // 1.8 maps carry the map id in the item durability.
-            item.setDurability(view.getId());
+            item.setDurability((short) view.getId());
         } catch (ReflectiveOperationException failure) {
             throw new IllegalArgumentException("cannot create map item: " + failure.getMessage(), failure);
         }
         return item;
     }
 
-    static void clear() { GUIS.clear(); MAPS.clear(); }
+    static void clear() {
+        for (Inventory inventory : GUIS.values())
+            for (Player player : Bukkit.getOnlinePlayers())
+                if (player.getOpenInventory().getTopInventory() == inventory) player.closeInventory();
+        GUIS.clear();
+        MAPS.clear();
+    }
 
     static String invoke(String descriptor, String methodName, List<String> arguments) throws Exception {
         Target target = target(descriptor);
@@ -117,6 +123,9 @@ final class BukkitInvoker {
         Collections.sort(candidates, new Comparator<Candidate>() {
             public int compare(Candidate left, Candidate right) { return left.cost - right.cost; }
         });
+        if (candidates.size() > 1 && candidates.get(0).cost == candidates.get(1).cost)
+            throw new IllegalArgumentException("ambiguous Bukkit method " + methodName + " on " + descriptor
+                + ": " + signatures(candidates, candidates.get(0).cost));
         Exception last = null;
         for (Candidate candidate : candidates) {
             try {
@@ -125,7 +134,7 @@ final class BukkitInvoker {
                     values[i] = value(candidate.method.getParameterTypes()[i], arguments.get(i));
                 Object result = candidate.method.invoke(target.value, values);
                 if (candidate.method.getReturnType() == void.class) return "";
-                return GSON.toJson(BukkitEventBridge.convert(result, 0));
+                return GSON.toJson(BukkitEventBridge.convertComplete(result, 0));
             } catch (IllegalArgumentException failure) {
                 last = failure;
             } catch (IllegalAccessException failure) {
@@ -143,6 +152,22 @@ final class BukkitInvoker {
     private static final class Candidate {
         final Method method; final int cost;
         Candidate(Method method, int cost) { this.method = method; this.cost = cost; }
+    }
+
+    private static String signatures(List<Candidate> candidates, int cost) {
+        StringBuilder text = new StringBuilder();
+        for (Candidate candidate : candidates) {
+            if (candidate.cost != cost) continue;
+            if (text.length() > 0) text.append(", ");
+            text.append(candidate.method.getName()).append('(');
+            Class<?>[] types = candidate.method.getParameterTypes();
+            for (int i = 0; i < types.length; i++) {
+                if (i > 0) text.append(',');
+                text.append(types[i].getSimpleName());
+            }
+            text.append(')');
+        }
+        return text.toString();
     }
 
     private static final class Target {
@@ -214,6 +239,11 @@ final class BukkitInvoker {
         if (type == long.class || type == Long.class) return Long.parseLong(text.trim());
         if (type == float.class || type == Float.class) return Float.parseFloat(text.trim());
         if (type == double.class || type == Double.class) return Double.parseDouble(text.trim());
+        if (type == Material.class) {
+            Material material = Material.matchMaterial(ServerArgs.vanillaPath(text));
+            if (material == null) throw new IllegalArgumentException("unknown material: " + text);
+            return material;
+        }
         if (type.isEnum()) {
             try { return Enum.valueOf((Class<Enum>) type, text.trim()); }
             catch (IllegalArgumentException exact) {
@@ -234,11 +264,6 @@ final class BukkitInvoker {
         if (type == Block.class) return block(text);
         if (type == BlockState.class) return block(text).getState();
         if (type == ItemStack.class) return item(text);
-        if (type == Material.class) {
-            Material material = Material.matchMaterial(ServerArgs.vanillaPath(text));
-            if (material == null) throw new IllegalArgumentException("unknown material: " + text);
-            return material;
-        }
         if (type == PotionEffectType.class) {
             PotionEffectType effect = PotionEffectType.getByName(ServerArgs.vanillaPath(text));
             if (effect == null) throw new IllegalArgumentException("unknown potion effect: " + text);
@@ -346,16 +371,23 @@ final class BukkitInvoker {
         if (parts.length != 4 && parts.length != 6)
             throw new IllegalArgumentException("location must be world,x,y,z[,yaw,pitch]: " + value);
         World world = world(parts[0]);
-        float yaw = parts.length == 6 ? Float.parseFloat(parts[4].trim()) : 0;
-        float pitch = parts.length == 6 ? Float.parseFloat(parts[5].trim()) : 0;
-        return new Location(world, Double.parseDouble(parts[1].trim()), Double.parseDouble(parts[2].trim()),
-            Double.parseDouble(parts[3].trim()), yaw, pitch);
+        float yaw = parts.length == 6 ? (float) finite(parts[4], "yaw") : 0;
+        float pitch = parts.length == 6 ? (float) finite(parts[5], "pitch") : 0;
+        return new Location(world, finite(parts[1], "x"), finite(parts[2], "y"), finite(parts[3], "z"), yaw, pitch);
     }
 
     private static Vector vector(String value) {
         String[] parts = value.split(",", 3);
         if (parts.length != 3) throw new IllegalArgumentException("vector must be x,y,z: " + value);
-        return new Vector(Double.parseDouble(parts[0].trim()), Double.parseDouble(parts[1].trim()), Double.parseDouble(parts[2].trim()));
+        return new Vector(finite(parts[0], "x"), finite(parts[1], "y"), finite(parts[2], "z"));
+    }
+
+    private static double finite(String value, String name) {
+        double number;
+        try { number = Double.parseDouble(value.trim()); }
+        catch (NumberFormatException invalid) { throw new IllegalArgumentException("invalid " + name + ": " + value); }
+        if (!Double.isFinite(number)) throw new IllegalArgumentException("invalid " + name + ": " + value);
+        return number;
     }
 
     private static ItemStack item(String value) {
@@ -368,7 +400,10 @@ final class BukkitInvoker {
     }
 
     private static int coordinate(String value, String name) {
-        try { return (int) Math.floor(Double.parseDouble(value.trim())); }
-        catch (NumberFormatException invalid) { throw new IllegalArgumentException("invalid " + name + " coordinate: " + value); }
+        double number = finite(value, name);
+        double floor = Math.floor(number);
+        if (floor < Integer.MIN_VALUE || floor > Integer.MAX_VALUE)
+            throw new IllegalArgumentException("invalid " + name + " coordinate: " + value);
+        return (int) floor;
     }
 }

@@ -147,7 +147,7 @@ C/C++ 示例：
 - `branch` 省略时使用仓库的默认分支。`updateInterval` 的单位是秒；设为 `0` 表示只保留首次检出，不自动更新。
 - 使用系统的 `git` 命令（可用 `-Dtranforlanguage.git=/path/to/git` 指定其他可执行文件）。私有仓库通过 git 自身的凭据助手或 SSH 配置认证；更新过程是非交互的，不会提示输入密码，凭据需提前配置好。
 - 若仓库根目录也有 `program.json`，以仓库中的程序配置为准，本地文件只保留 `repository`、`branch`、`updateInterval` 三项更新设置；若仓库没有 `program.json`，则直接使用本地文件。
-- 更新会执行 `git reset --hard`，插件目录中未提交的源码修改会被丢弃；检出不会清理已有的未跟踪文件。请把修改提交并推送到远端，而不是直接编辑受管理的源码。
+- 更新会执行 `git reset --hard`，未提交的源码修改会被丢弃；通常保留不冲突的未跟踪文件，但与目标提交路径冲突的文件或目录可能被覆盖或删除。持久数据请单独备份，不能依赖“未跟踪”状态获得保护。
 - 插件目录会出现 `.git/`；`.tranforlanguage/` 等未跟踪的构建缓存会保留。仓库负责整个插件目录，不要把其他插件放进同一个工作树。
 - 自动更新会直接运行远端仓库的新提交，TFL 不审核内容也不验证签名。只绑定你信任的仓库和分支，并参考[运行边界](administration.md#程序权限与运行边界)。
 
@@ -332,7 +332,7 @@ Spigot 权限：`tranforlanguage.use`（list）、`tranforlanguage.reload`（启
 | `getServerInfo` | — | JSON 对象 | 仅 Spigot；版本、在线人数、最大人数、世界 |
 | `getWorldBorder` | 世界 | JSON 对象 | 仅 Spigot；大小、中心、警告距离、伤害 |
 | `setWorldBorder` | 世界, 大小[, 中心X, 中心Z[, 警告距离[, 伤害]]] | — | 仅 Spigot |
-| `sendPluginMessage` | 玩家, 频道, 数据 | — | 仅 Spigot；数据按 UTF-8 编码，频道需由其他插件注册 |
+| `sendPluginMessage` | 玩家, 频道, 数据 | — | 仅 Spigot；数据按 UTF-8 编码，TranForLanguage 会在发送前注册出站频道；接收端插件需注册该频道 |
 | `setPlayerTime` | 玩家, 时间[, 相对] | — | 仅 Spigot；相对默认 `true` |
 | `resetPlayerTime` | 玩家 | — | 仅 Spigot |
 | `setPlayerWeather` | 玩家, `clear`/`downfall` | — | 仅 Spigot |

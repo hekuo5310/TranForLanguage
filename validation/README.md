@@ -8,7 +8,7 @@
 npm ci --prefix validation --ignore-scripts
 # 先阅读 Minecraft EULA；同意后显式传入 --accept-eula。
 python3 validation/prepare.py /tmp/tfl-fabric-1.20 --loader fabric \
-  --artifact adapters/fabric/build/libs/tranforlanguage-fabric-1.20-2.4.0.jar --accept-eula
+  --artifact adapters/fabric/build/libs/tranforlanguage-fabric-1.20-2.4.1.jar --accept-eula
 python3 validation/install.py /tmp/tfl-fabric-1.20 --minecraft 1.20
 # 安装器会从官方渠道安装服务端和精确版本的 Fabric API。
 node validation/run.cjs /tmp/tfl-fabric-1.20 -- java -Xmx2G -jar fabric-server-launch.jar nogui

@@ -86,14 +86,19 @@ public final class ProgramManager implements AutoCloseable {
     /** Fetch a Git-managed program now; reloads it when the fetched commit differs from the running one. */
     CompletableFuture<Void> update(String id) {
         Entry entry = require(id);
-        if (closed) throw new IllegalStateException("Program manager closed");
-        return CompletableFuture.runAsync(() -> {
-            try {
-                if (updateOnce(entry, null)) reload(id).get();
-            } catch (Exception failure) {
-                throw new CompletionException(failure);
-            }
-        }, updates);
+        synchronized (this) {
+            if (closed) throw new IllegalStateException("Program manager closed");
+            CompletableFuture<Void> future = CompletableFuture.runAsync(() -> {
+                try {
+                    if (updateOnce(entry, null)) reload(id).get();
+                } catch (Exception failure) {
+                    throw new CompletionException(failure);
+                }
+            }, updates);
+            pending.add(future);
+            future.whenComplete((value, failure) -> pending.remove(future));
+            return future;
+        }
     }
     private boolean updateOnce(Entry entry, Object token) throws Exception {
         synchronized (entry.repositoryLock) {
@@ -138,13 +143,20 @@ public final class ProgramManager implements AutoCloseable {
         if (!changed || !isCurrent(entry, token)) return;
         platform.logger().info("Program " + entry.id + " updated from repository; reloading");
         try {
-            reload(entry.id).whenComplete((value, failure) -> {
+            reloadForUpdate(entry, token).whenComplete((value, failure) -> {
                 if (failure != null) platform.logger().warning(
                     "Program " + entry.id + " reload after repository update failed: " + failureMessage(failure));
             });
         } catch (RuntimeException stopping) {
             platform.logger().warning("Program " + entry.id + " could not reload after repository update: " + stopping);
         }
+    }
+    private CompletableFuture<Void> reloadForUpdate(final Entry entry, final Object token) {
+        return submit(() -> {
+            // Re-check on the control thread so a concurrent stop(id) cannot be followed by a start.
+            if (!isCurrent(entry, token)) return;
+            entry.start();
+        });
     }
     private boolean isCurrent(Entry entry, Object token) {
         return !closed && entry.updateToken == token && programs.get(entry.id) == entry;
@@ -280,7 +292,7 @@ public final class ProgramManager implements AutoCloseable {
                     JsonObject local = manifest();
                     source = ProgramRepository.parse(local);
                     repository = source;
-                    if (source != null && !ProgramRepository.checkedOut(directory)) {
+                    if (source != null && !ProgramRepository.ready(directory)) {
                         source.sync(directory);
                         fresh = true;
                         if (closed) return;
