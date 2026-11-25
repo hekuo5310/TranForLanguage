@@ -14,6 +14,9 @@ public final class ProgramManager implements AutoCloseable {
     private final ExecutorService control = Executors.newSingleThreadExecutor(r -> {
         Thread t = new Thread(r, "TranForLanguage-Programs"); t.setDaemon(true); return t;
     });
+    private final ScheduledExecutorService updates = Executors.newSingleThreadScheduledExecutor(r -> {
+        Thread t = new Thread(r, "TranForLanguage-Updates"); t.setDaemon(true); return t;
+    });
     private volatile Map<String, Entry> programs = Collections.emptyMap();
     private volatile boolean closed;
     private final java.util.Set<CompletableFuture<Void>> pending = java.util.Collections.newSetFromMap(new ConcurrentHashMap<CompletableFuture<Void>, Boolean>());
@@ -80,6 +83,91 @@ public final class ProgramManager implements AutoCloseable {
         entry.start();
     }); }
     public synchronized CompletableFuture<Void> stop(String id) { return submit(() -> require(id).stop()); }
+    /** Fetch a Git-managed program now; reloads it when the fetched commit differs from the running one. */
+    CompletableFuture<Void> update(String id) {
+        Entry entry = require(id);
+        synchronized (this) {
+            if (closed) throw new IllegalStateException("Program manager closed");
+            CompletableFuture<Void> future = CompletableFuture.runAsync(() -> {
+                try {
+                    if (updateOnce(entry, null)) reload(id).get();
+                } catch (Exception failure) {
+                    throw new CompletionException(failure);
+                }
+            }, updates);
+            pending.add(future);
+            future.whenComplete((value, failure) -> pending.remove(future));
+            return future;
+        }
+    }
+    private boolean updateOnce(Entry entry, Object token) throws Exception {
+        synchronized (entry.repositoryLock) {
+            if (closed || programs.get(entry.id) != entry) return false;
+            if (token != null && entry.updateToken != token) return false;
+            ProgramRepository repository = entry.repository;
+            if (repository == null) throw new IllegalStateException("Program " + entry.id + " has no repository configured");
+            return repository.sync(entry.directory);
+        }
+    }
+    private void scheduleUpdate(final Entry entry, ProgramRepository repository, boolean freshCheckout) {
+        ScheduledFuture<?> previous;
+        synchronized (entry) {
+            entry.updateToken = null;
+            previous = entry.updateTask;
+            entry.updateTask = null;
+        }
+        if (previous != null) previous.cancel(false);
+        if (closed || repository == null || repository.intervalSeconds <= 0) return;
+        final Object token = new Object();
+        long delay = freshCheckout ? repository.intervalSeconds : 0;
+        try {
+            synchronized (entry) {
+                entry.updateToken = token;
+                entry.updateTask = updates.scheduleWithFixedDelay(
+                    () -> checkForUpdate(entry, token), delay, repository.intervalSeconds, TimeUnit.SECONDS);
+            }
+        } catch (RejectedExecutionException shuttingDown) {
+            synchronized (entry) { if (entry.updateToken == token) entry.updateToken = null; }
+        }
+    }
+    private void checkForUpdate(Entry entry, Object token) {
+        if (!isCurrent(entry, token)) return;
+        boolean changed;
+        try {
+            changed = updateOnce(entry, token);
+        } catch (Exception failure) {
+            if (isCurrent(entry, token))
+                platform.logger().warning("Program " + entry.id + " repository update failed: " + failureMessage(failure));
+            return;
+        }
+        if (!changed || !isCurrent(entry, token)) return;
+        platform.logger().info("Program " + entry.id + " updated from repository; reloading");
+        try {
+            reloadForUpdate(entry, token).whenComplete((value, failure) -> {
+                if (failure != null) platform.logger().warning(
+                    "Program " + entry.id + " reload after repository update failed: " + failureMessage(failure));
+            });
+        } catch (RuntimeException stopping) {
+            platform.logger().warning("Program " + entry.id + " could not reload after repository update: " + stopping);
+        }
+    }
+    private CompletableFuture<Void> reloadForUpdate(final Entry entry, final Object token) {
+        return submit(() -> {
+            // Re-check on the control thread so a concurrent stop(id) cannot be followed by a start.
+            if (!isCurrent(entry, token)) return;
+            entry.start();
+        });
+    }
+    private boolean isCurrent(Entry entry, Object token) {
+        return !closed && entry.updateToken == token && programs.get(entry.id) == entry;
+    }
+    private static String failureMessage(Throwable error) {
+        Throwable cause = error;
+        while ((cause instanceof CompletionException || cause instanceof ExecutionException) && cause.getCause() != null)
+            cause = cause.getCause();
+        String message = cause.getMessage();
+        return message == null || message.isEmpty() ? cause.toString() : message;
+    }
     private CompletableFuture<Void> submit(CheckedAction action) {
         if (closed) throw new IllegalStateException("Program manager closed");
         CompletableFuture<Void> future = CompletableFuture.runAsync(() -> {
@@ -104,11 +192,20 @@ public final class ProgramManager implements AutoCloseable {
         String line = null;
         for (Entry e : programs.values()) {
             ProgramRuntime runtime = e.runtime;
-            if (runtime != null && runtime.isRunning() && (e.events == null || e.events.contains(name))) {
+            if (runtime != null && runtime.isRunning() && e.accepts(name)) {
                 if (line == null) line = ProgramRuntime.eventLine(name, args);
                 runtime.sendLine(line);
             }
         }
+    }
+    /** True when at least one running program explicitly subscribed to the generic Spigot event stream. */
+    public boolean wantsSpigotEvents() {
+        for (Entry e : programs.values()) {
+            ProgramRuntime runtime = e.runtime;
+            Set<String> events = e.events;
+            if (runtime != null && runtime.isRunning() && events != null && events.contains("BukkitEvent")) return true;
+        }
+        return false;
     }
     private Map<String, File> discover() throws IOException {
         File root = platform.directory().getCanonicalFile(); Files.createDirectories(root.toPath());
@@ -145,7 +242,7 @@ public final class ProgramManager implements AutoCloseable {
         return false;
     }
     @Override public void close() {
-        synchronized (this) { closed = true; control.shutdownNow(); }
+        synchronized (this) { closed = true; control.shutdownNow(); updates.shutdownNow(); }
         for (CompletableFuture<Void> future : pending) future.cancel(false);
         for (Entry e : programs.values()) e.stop();
         bus.close();
@@ -158,20 +255,52 @@ public final class ProgramManager implements AutoCloseable {
     }
     private final class Entry {
         final String id; final File directory;
+        final Object repositoryLock = new Object();
         volatile ProgramRuntime runtime;
         volatile Set<String> events;
         volatile String failure;
         volatile boolean preparing;
+        volatile ProgramRepository repository;
+        private ScheduledFuture<?> updateTask;
+        private Object updateToken;
         Entry(String id, File directory) { this.id = id; this.directory = directory; }
         boolean running() { ProgramRuntime r = runtime; return r != null && r.isRunning(); }
+        /** "BukkitEvent" is opt-in; it must be listed explicitly even when no events filter is set. */
+        boolean accepts(String event) {
+            if (event.equals("BukkitEvent")) return events != null && events.contains("BukkitEvent");
+            return events == null || events.contains(event);
+        }
         String state() { return preparing ? "STARTING" : failure != null ? "FAILED" : running() ? "RUNNING" : "STOPPED"; }
+        private JsonObject manifest() throws IOException {
+            File file = new File(directory, "program.json");
+            if (!file.isFile()) return null;
+            try (Reader reader = Files.newBufferedReader(file.toPath(), StandardCharsets.UTF_8)) {
+                return new Gson().fromJson(reader, JsonObject.class);
+            } catch (JsonParseException invalid) {
+                throw new IOException("Invalid program.json: " + invalid.getMessage(), invalid);
+            }
+        }
         void start() throws Exception {
             stop(); preparing = true; failure = null;
+            ProgramRepository source = null;
+            boolean fresh = false;
             try {
-                Set<String> selected = null;
-                File manifest = new File(directory, "program.json");
-                if (manifest.isFile()) try (Reader reader = Files.newBufferedReader(manifest.toPath(), StandardCharsets.UTF_8)) {
-                    JsonObject config = new Gson().fromJson(reader, JsonObject.class);
+                // Git updates must not replace files while this program is being prepared.
+                synchronized (repositoryLock) {
+                    if (closed) return;
+                    repository = null;
+                    JsonObject local = manifest();
+                    source = ProgramRepository.parse(local);
+                    repository = source;
+                    if (source != null && !ProgramRepository.ready(directory)) {
+                        source.sync(directory);
+                        fresh = true;
+                        if (closed) return;
+                        platform.logger().info("Program " + id + " checked out from " + source.displayUrl());
+                    }
+                    Set<String> selected = null;
+                    JsonObject config = manifest();
+                    if (config == null) config = local;
                     if (config != null && config.has("events")) {
                         selected = new HashSet<>();
                         for (JsonElement event : config.getAsJsonArray("events")) {
@@ -179,47 +308,52 @@ public final class ProgramManager implements AutoCloseable {
                             selected.add(event.getAsString());
                         }
                     }
-                }
-                events = selected == null ? null : Collections.unmodifiableSet(selected);
-                Logger log = new Logger(platform.logger().getName() + ".program." + id, null) {
-                    @Override public void log(java.util.logging.Level level, String message) {
-                        java.util.logging.LogRecord record = new java.util.logging.LogRecord(level, message);
-                        record.setLoggerName(getName()); log(record);
+                    events = selected == null ? null : Collections.unmodifiableSet(selected);
+                    Logger log = new Logger(platform.logger().getName() + ".program." + id, null) {
+                        @Override public void log(java.util.logging.Level level, String message) {
+                            java.util.logging.LogRecord record = new java.util.logging.LogRecord(level, message);
+                            record.setLoggerName(getName()); log(record);
+                        }
+                        @Override public void log(java.util.logging.LogRecord record) {
+                            if (!isLoggable(record.getLevel())) return;
+                            java.util.logging.LogRecord copy = new java.util.logging.LogRecord(record.getLevel(), "[" + id + "] " + record.getMessage());
+                            copy.setLoggerName(record.getLoggerName() == null ? getName() : record.getLoggerName());
+                            copy.setParameters(record.getParameters()); copy.setThrown(record.getThrown());
+                            copy.setResourceBundle(record.getResourceBundle()); copy.setResourceBundleName(record.getResourceBundleName());
+                            copy.setSourceClassName(record.getSourceClassName()); copy.setSourceMethodName(record.getSourceMethodName());
+                            platform.logger().log(copy);
+                        }
+                    };
+                    log.setLevel(java.util.logging.Level.ALL);
+                    ProgramRuntime next = new ProgramRuntime(new Platform() {
+                        public File directory() { return directory; }
+                        public Logger logger() { return log; }
+                        public void execute(Runnable task) { platform.execute(task); }
+                        public void broadcast(String message) { platform.broadcast(message); }
+                        public void sendMessage(String player, String message) { platform.sendMessage(player, message); }
+                        public void dispatchCommand(String command) { platform.dispatchCommand(command); }
+                    }, bus, id);
+                    synchronized (this) {
+                        if (closed) { next.close(); return; }
+                        runtime = next;
                     }
-                    @Override public void log(java.util.logging.LogRecord record) {
-                        if (!isLoggable(record.getLevel())) return;
-                        java.util.logging.LogRecord copy = new java.util.logging.LogRecord(record.getLevel(), "[" + id + "] " + record.getMessage());
-                        copy.setLoggerName(record.getLoggerName() == null ? getName() : record.getLoggerName());
-                        copy.setParameters(record.getParameters()); copy.setThrown(record.getThrown());
-                        copy.setResourceBundle(record.getResourceBundle()); copy.setResourceBundleName(record.getResourceBundleName());
-                        copy.setSourceClassName(record.getSourceClassName()); copy.setSourceMethodName(record.getSourceMethodName());
-                        platform.logger().log(copy);
-                    }
-                };
-                log.setLevel(java.util.logging.Level.ALL);
-                ProgramRuntime next = new ProgramRuntime(new Platform() {
-                    public File directory() { return directory; }
-                    public Logger logger() { return log; }
-                    public void execute(Runnable task) { platform.execute(task); }
-                    public void broadcast(String message) { platform.broadcast(message); }
-                    public void sendMessage(String player, String message) { platform.sendMessage(player, message); }
-                    public void dispatchCommand(String command) { platform.dispatchCommand(command); }
-                }, bus, id);
-                synchronized (this) {
-                    if (closed) { next.close(); return; }
-                    runtime = next;
+                    next.reload().get();
+                    if (closed) next.close();
                 }
-                next.reload().get();
-                if (closed) next.close();
             } catch (Exception error) {
                 Throwable cause = error instanceof ExecutionException ? error.getCause() : error;
                 failure = cause.toString();
                 ProgramRuntime r = runtime; if (r != null) r.close();
                 platform.logger().warning("Program " + id + " failed: " + failure);
                 throw error;
-            } finally { preparing = false; }
+            } finally {
+                preparing = false;
+                scheduleUpdate(this, source, fresh);
+            }
         }
         synchronized void stop() {
+            updateToken = null;
+            if (updateTask != null) { updateTask.cancel(false); updateTask = null; }
             ProgramRuntime r = runtime; runtime = null; failure = null;
             if (r != null) r.close();
         }

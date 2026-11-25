@@ -8,5 +8,5 @@
   "entrypoints": {"main": ["com.github.tranforlanguage.fabric.TranForLanguageFabric"]},
   "depends": {"fabricloader": ">=${fabric_loader_minimum}", "fabric-api": "*", "minecraft": "${minecraft_version}", "java": ">=${java_version}"},
   "mixins": ["tranforlanguage.mixins.json"],
-  "license": "Apache-2.0"
+  "license": "MPL-2.0"
 }

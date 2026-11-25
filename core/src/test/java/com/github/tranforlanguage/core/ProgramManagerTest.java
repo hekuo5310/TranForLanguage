@@ -17,8 +17,21 @@ public class ProgramManagerTest {
     @Before public void setup() throws Exception { platform = new RecordingPlatform(temp.newFolder("mixed programs")); manager = new ProgramManager(platform); }
     @After public void close() { manager.close(); }
     private File write(String name, String text) throws Exception {
-        File file = new File(platform.dir, name); Files.createDirectories(file.toPath().getParent());
+        return write(platform.dir, name, text);
+    }
+    private File write(File root, String name, String text) throws Exception {
+        File file = new File(root, name); Files.createDirectories(file.toPath().getParent());
         Files.write(file.toPath(), text.getBytes(StandardCharsets.UTF_8)); return file;
+    }
+    private void git(File directory, String... arguments) throws Exception {
+        List<String> command = new ArrayList<>();
+        command.add("git"); command.addAll(Arrays.asList(arguments));
+        File log = temp.newFile();
+        Process process = new ProcessBuilder(command).directory(directory).redirectErrorStream(true)
+            .redirectOutput(ProcessBuilder.Redirect.to(log)).start();
+        assertTrue("git " + Arrays.toString(arguments) + " timed out", process.waitFor(60, TimeUnit.SECONDS));
+        String output = new String(Files.readAllBytes(log.toPath()), StandardCharsets.UTF_8);
+        assertEquals("git " + Arrays.toString(arguments) + ": " + output, 0, process.exitValue());
     }
     private void await(java.util.function.BooleanSupplier condition) throws Exception {
         long end = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
@@ -116,6 +129,93 @@ public class ProgramManagerTest {
         manager.stop("stale").get(5, TimeUnit.SECONDS);
         queued.run();
         assertEquals("A stopped program's queued server call must not reach the platform", 0, platform.serverCalls.get());
+    }
+    @Test public void gitRepositoryProgramsCheckoutAndHotReloadWhenTheRemoteAdvances() throws Exception {
+        File upstream = temp.newFolder("git upstream");
+        git(upstream, "init", "-q");
+        git(upstream, "config", "user.email", "tfl@example.invalid");
+        git(upstream, "config", "user.name", "TranForLanguage Test");
+        git(upstream, "config", "commit.gpgsign", "false");
+        write(upstream, "program.json", "{\"language\":\"python\"}");
+        write(upstream, "main.py", "from tranforlanguage import broadcast,run\nbroadcast('repo:v1')\nrun()\n");
+        git(upstream, "add", ".");
+        git(upstream, "commit", "-q", "-m", "v1");
+
+        write("managed/program.json", "{\"repository\":\"" + upstream.toPath().toUri() + "\",\"updateInterval\":1}");
+        manager.reload().get(120, TimeUnit.SECONDS);
+        assertEquals("RUNNING", manager.statuses().get(0).state);
+        assertTrue(ProgramRepository.ready(new File(platform.dir, "managed")));
+        await(() -> platform.messages.contains("repo:v1"));
+
+        write(upstream, "main.py", "from tranforlanguage import broadcast,run\nbroadcast('repo:v2')\nrun()\n");
+        git(upstream, "add", "main.py");
+        git(upstream, "commit", "-q", "-m", "v2");
+
+        platform.messages.clear();
+        manager.update("managed").get(120, TimeUnit.SECONDS);
+        await(() -> platform.messages.contains("repo:v2"));
+        assertEquals("RUNNING", manager.statuses().get(0).state);
+
+        platform.messages.clear();
+        write(upstream, "main.py", "from tranforlanguage import broadcast,run\nbroadcast('repo:v3')\nrun()\n");
+        git(upstream, "add", "main.py");
+        git(upstream, "commit", "-q", "-m", "v3");
+        await(() -> platform.messages.contains("repo:v3"));
+        assertEquals("RUNNING", manager.statuses().get(0).state);
+        String manifest = new String(Files.readAllBytes(new File(platform.dir, "managed/program.json").toPath()), StandardCharsets.UTF_8);
+        assertTrue(manifest, manifest.contains("\"repository\""));
+        assertTrue(manifest, manifest.contains("\"language\""));
+
+        write(upstream, "program.json", "{broken");
+        git(upstream, "add", "program.json");
+        git(upstream, "commit", "-q", "-m", "broken manifest");
+        try { manager.update("managed").get(60, TimeUnit.SECONDS); fail(); }
+        catch (ExecutionException expected) { assertTrue(expected.toString(), expected.toString().contains("Invalid program.json")); }
+        manifest = new String(Files.readAllBytes(new File(platform.dir, "managed/program.json").toPath()), StandardCharsets.UTF_8);
+        assertTrue("An invalid upstream manifest must not destroy the local manifest", manifest.contains("\"repository\""));
+
+        write(upstream, "program.json", "{\"language\":\"python\"}");
+        write(upstream, "main.py", "from tranforlanguage import broadcast,run\nbroadcast('repo:v4')\nrun()\n");
+        git(upstream, "add", ".");
+        git(upstream, "commit", "-q", "-m", "v4");
+        platform.messages.clear();
+        manager.update("managed").get(60, TimeUnit.SECONDS);
+        await(() -> platform.messages.contains("repo:v4"));
+    }
+    @Test public void failedInitialCheckoutIsRetriedByReload() throws Exception {
+        File upstream = temp.newFolder("late upstream");
+        write("late/program.json", "{\"repository\":\"" + upstream.toPath().toUri() + "\",\"updateInterval\":0}");
+        try { manager.reload().get(30, TimeUnit.SECONDS); fail(); }
+        catch (ExecutionException expected) { }
+        File directory = new File(platform.dir, "late");
+        assertFalse(ProgramRepository.ready(directory));
+
+        git(upstream, "init", "-q");
+        git(upstream, "config", "user.email", "tfl@example.invalid");
+        git(upstream, "config", "user.name", "TranForLanguage Test");
+        git(upstream, "config", "commit.gpgsign", "false");
+        write(upstream, "program.json", "{\"language\":\"python\"}");
+        write(upstream, "main.py", "from tranforlanguage import broadcast,run\nbroadcast('late:ok')\nrun()\n");
+        git(upstream, "add", ".");
+        git(upstream, "commit", "-q", "-m", "late");
+
+        manager.reload("late").get(60, TimeUnit.SECONDS);
+        assertTrue(ProgramRepository.ready(directory));
+        await(() -> platform.messages.contains("late:ok"));
+        assertEquals("RUNNING", manager.statuses().get(0).state);
+    }
+    @Test public void bukkitEventStreamRequiresExplicitSubscription() throws Exception {
+        write("generic/program.json", "{\"language\":\"python\",\"events\":[\"BukkitEvent\"]}");
+        write("generic/main.py", "from tranforlanguage import on,run,broadcast\n@on('BukkitEvent')\ndef got(name,payload): broadcast('generic:'+name+':'+payload)\nrun()\n");
+        write("plain/program.json", "{\"language\":\"python\"}");
+        write("plain/main.py", "from tranforlanguage import on,run,broadcast\n@on('BukkitEvent')\ndef got(name,payload): broadcast('plain:'+name)\nrun()\n");
+        manager.reload().get(30, TimeUnit.SECONDS);
+        assertTrue(manager.wantsSpigotEvents());
+        manager.sendEvent("BukkitEvent", "TestEvent", "{\"x\":1}");
+        await(() -> platform.messages.contains("generic:TestEvent:{\"x\":1}"));
+        assertFalse(platform.messages.toString(), platform.messages.stream().anyMatch(message -> message.startsWith("plain:")));
+        manager.stop("generic").get(5, TimeUnit.SECONDS);
+        assertFalse("Stopped programs must not keep the generic stream enabled", manager.wantsSpigotEvents());
     }
     @Test public void emptyDirectoriesDoNotCreateProgramsAndUnknownIdsFail() throws Exception {
         write("empty/readme.txt", "nothing to run");

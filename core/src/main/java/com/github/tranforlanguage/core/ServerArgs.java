@@ -22,6 +22,14 @@ public final class ServerArgs {
             return number;
         } catch (NumberFormatException e) { throw new IllegalArgumentException(method + ": " + name + " must be a number: " + value); }
     }
+    public double decimal(int index, String name, double fallback) { return has(index) ? decimal(index, name) : fallback; }
+    public boolean bool(int index, String name) {
+        String value = text(index, name).trim();
+        if (value.equalsIgnoreCase("true")) return true;
+        if (value.equalsIgnoreCase("false")) return false;
+        throw new IllegalArgumentException(method + ": " + name + " must be true or false: " + value);
+    }
+    public boolean bool(int index, String name, boolean fallback) { return has(index) ? bool(index, name) : fallback; }
     public int integer(int index, String name) {
         String value = text(index, name).trim();
         try { return Integer.parseInt(value); }

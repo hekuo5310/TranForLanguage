@@ -22,6 +22,7 @@
 | Spigot 插件与核心测试 | JDK 17+（建议 21 或 25，JRuby 相关测试需要 21+）、Maven 3.9+ |
 | 模组构建 | `python3 scripts/configure-build.py` 输出的 Gradle 版本，以及目标游戏的 JDK 17 / 21 / 25 |
 | 各语言集成测试 | gcc / g++、Python 3.8+、Rust 1.85+ 与 Cargo、Node.js 16+、Go 1.21+、Ruby 3.0+、PHP 7.4+、Lua 5.4 |
+| Git 自动更新测试 | git |
 | 在 JVM 内运行的测试 | clang、lld、wasi-libc、与 clang 主版本一致的 `libclang-rt-<版本>-dev-wasm32`，以及 `rustup target add wasm32-wasip1` |
 | 构建脚本（`scripts/*.py`） | Python 3.11+（`check-artifact.py` 使用 `tomllib`） |
 | 实际开服验证（可选） | Node.js 22+，见 [validation/README.md](validation/README.md) |
@@ -116,4 +117,4 @@ python3 scripts/check-artifact.py fabric 1.21.1 21 'adapters/fabric/build/libs/*
 
 ## 许可证
 
-提交贡献即表示你同意以 [Apache License 2.0](LICENSE) 授权你的贡献。
+提交贡献即表示你同意以 [Mozilla Public License 2.0](LICENSE) 授权你的贡献。

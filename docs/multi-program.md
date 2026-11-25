@@ -14,9 +14,9 @@
 | `greeter` | `greeter/main.js` | 独立 Node.js 进程 |
 | `@root` | 程序目录根部的 `main.cpp` 等入口 | 根目录程序，可与子目录程序同时运行 |
 
-每个子目录可有自己的 `program.json`、日志、SDK 缓存和依赖。根目录配置的嵌套 `entrypoint` 所在顶层目录归根程序使用，不会再次启动为子插件。只扫描直接子目录；点开头、`@` 开头及符号链接目录不作为插件加载。空目录不启动进程。一个插件编译失败或退出，不会停止其他插件；退出码写入带插件 ID 的日志，状态变为 `STOPPED`，不自动重启。编译/配置失败标记 `FAILED`，由管理员修复后重新启动。
+每个子目录可有自己的 `program.json`、日志、SDK 缓存和依赖。子目录还可以在 `program.json` 中填写 `repository` 绑定 Git 仓库，由 TFL 按间隔拉取并热重载（见[开发文档](development.md#35-从-git-仓库自动更新)）。根目录配置的嵌套 `entrypoint` 所在顶层目录归根程序使用，不会再次启动为子插件。只扫描直接子目录；点开头、`@` 开头及符号链接目录不作为插件加载。空目录不启动进程。一个插件编译失败或退出，不会停止其他插件；退出码写入带插件 ID 的日志，状态变为 `STOPPED`，不自动重启。编译/配置失败标记 `FAILED`，由管理员修复后重新启动。
 
-游戏事件只序列化一次，再投递到各插件独立的有界队列。可在每个插件的 `program.json` 中指定 `"events": ["PlayerJoin", "PlayerChat"]`，只接收需要的事件（全部事件及参数见[开发文档](development.md#5-事件参考)）；省略则保留全部事件，空数组不接收游戏事件（仍接收关闭通知）。Spigot 移动事件只报告位置改变，默认每名玩家最多每 100ms 一次；可用 `-Dtranforlanguage.move-interval-ms=0` 关闭限频。
+游戏事件只序列化一次，再投递到各插件独立的有界队列。可在每个插件的 `program.json` 中指定 `"events": ["PlayerJoin", "PlayerChat"]`，只接收需要的事件（全部事件及参数见[开发文档](development.md#5-事件参考)）；省略则保留全部事件，空数组不接收游戏事件（仍接收关闭通知）。Spigot 专属的全量 Bukkit 事件需要显式加入 `"BukkitEvent"`，不会随省略 `events` 自动开启。Spigot 移动事件只报告位置改变，默认每名玩家最多每 100ms 一次；可用 `-Dtranforlanguage.move-interval-ms=0` 关闭限频。
 
 ## 程序间互相调用
 
