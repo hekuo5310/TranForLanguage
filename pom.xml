@@ -1,8 +1,9 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
-  <groupId>com.github.tranforlanguage</groupId><artifactId>tranforlanguage-spigot</artifactId><version>2.3.0</version>
+  <groupId>com.github.tranforlanguage</groupId><artifactId>tranforlanguage-spigot</artifactId><version>2.4.0</version>
   <name>TranForLanguage</name>
   <description>Run C, C++, Python, Rust, JavaScript, Go, Ruby, PHP, Java and Lua programs on Minecraft servers and let them call each other.</description>
+  <licenses><license><name>Mozilla Public License 2.0</name><url>https://www.mozilla.org/en-US/MPL/2.0/</url><distribution>repo</distribution></license></licenses>
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <maven.compiler.release>8</maven.compiler.release>

@@ -4,8 +4,9 @@
 
 - **四个平台**：Spigot / Paper（API 1.8–26.3）、Fabric、Forge、NeoForge，逐个游戏版本构建。
 - **零配置**：放入 `main.py`、`main.go`、`Main.java` 等入口文件即可，SDK 自动注入；需要第三方库时使用各语言自己的依赖清单。
+- **Git 自动更新**：在 `program.json` 中填写 GitHub / GitLab 等 Git 仓库地址，默认每小时拉取一次，有新提交时自动热重载插件。
 - **在服务器 JVM 内运行**：C、Rust、Go、Java、Ruby、Lua 程序在准备时一次性翻译成 JVM 字节码，启动只加载已保存的类；其他语言以独立进程运行。
-- **41 个游戏事件**与 `@server` 游戏操作（传送、给物品、改方块等），各平台参数一致。
+- **41 个跨平台事件与 Spigot 全量 Bukkit 事件桥**，以及 `@server` 游戏操作（传送、给物品、改方块、天气、实体、Scoreboard、GUI、地图、通用 Bukkit 调用等）；跨平台事件参数一致，Spigot 专属操作单独标注。
 
 ## 快速开始
 
@@ -50,4 +51,4 @@
 
 ## 许可证
 
-[Apache License 2.0](LICENSE)
+[Mozilla Public License 2.0](LICENSE)

@@ -1,7 +1,7 @@
 {
   "name": "tranforlanguage-server-validation",
   "private": true,
-  "version": "2.3.0",
+  "version": "2.4.0",
   "description": "Loopback-only real-server smoke tests",
   "dependencies": {
     "mineflayer": "4.39.0",

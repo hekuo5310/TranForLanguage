@@ -6,10 +6,10 @@
 
 | 产物 | 目标 | 构建工具 |
 | --- | --- | --- |
-| `tranforlanguage-spigot-2.3.0.jar` | Spigot / 常规 Paper 分支，官方 API 1.8–26.3 | Maven |
-| `tranforlanguage-fabric-<游戏版本>-2.3.0.jar` | Fabric 1.20–26.3，逐版本构建；需要 Fabric Loader 0.17.0+ | Gradle + Loom |
-| `tranforlanguage-neoforge-<游戏版本>-2.3.0.jar` | NeoForge 1.21–26.3，逐版本构建 | Gradle + ModDevGradle |
-| `tranforlanguage-forge-<游戏版本>-2.3.0.jar` | Forge 1.20.x–1.21.x，按官方已发布版本构建 | Gradle + ForgeGradle |
+| `tranforlanguage-spigot-2.4.0.jar` | Spigot / 常规 Paper 分支，官方 API 1.8–26.3 | Maven |
+| `tranforlanguage-fabric-<游戏版本>-2.4.0.jar` | Fabric 1.20–26.3，逐版本构建；需要 Fabric Loader 0.17.0+ | Gradle + Loom |
+| `tranforlanguage-neoforge-<游戏版本>-2.4.0.jar` | NeoForge 1.21–26.3，逐版本构建 | Gradle + ModDevGradle |
+| `tranforlanguage-forge-<游戏版本>-2.4.0.jar` | Forge 1.20.x–1.21.x，按官方已发布版本构建 | Gradle + ForgeGradle |
 
 目标范围与运行实测是不同的检查。[兼容说明](compatibility.md)列出版本矩阵、尚未接入的模组事件和验证边界。Spigot 1.8 之前及 Folia 尚未建立兼容保障。
 
@@ -23,7 +23,7 @@
 mvn clean verify
 ```
 
-安装 `target/tranforlanguage-spigot-2.3.0.jar` 到 `plugins/`。不再为同一插件维护 Maven / Gradle 两份构建。
+安装 `target/tranforlanguage-spigot-2.4.0.jar` 到 `plugins/`。不再为同一插件维护 Maven / Gradle 两份构建。
 
 ### Fabric / Forge / NeoForge
 
@@ -48,7 +48,7 @@ gradle -p adapters/forge clean build
 
 构建还需要目标游戏的 Java toolchain（17 / 21 / 25），见[版本锁文件](../compatibility/versions.json)中的 `java` 与 `gradle` 字段。CI 自动安装这些 JDK 和正确的 Gradle。产物在相应 `adapters/<加载器>/build/libs/`，仅安装与服务器加载器及 Minecraft 版本完全一致的发行 JAR 到 `mods/`。Fabric 额外安装对应游戏版本的 Fabric API。
 
-也可从 GitHub Actions 下载按平台/游戏版本区分的产物。常规版本通过与项目版本一致的 `v*` 标签发布；本次 2.3.0 由 main 分支上带 `[release-v2.3.0]` 标记的提交在完整构建通过后自动创建标签并发布，不覆盖指向其他提交的标签。标记必须出现在最终推送到 main 的提交信息里，合并 PR 前请检查 GitHub 显示的提交信息；该版本不能通过手动推送标签发布。
+也可从 GitHub Actions 下载按平台/游戏版本区分的产物。常规版本通过与项目版本一致的 `v*` 标签发布：推送 `v2.4.0` 会在完整构建与真实服务端冒烟测试通过后自动创建 Release，标签必须指向已验证的提交，已有标签不会被移动。也可以在 main 的合并提交中使用 `[release-v2.4.0]` 标记触发同一流程；标记必须出现在最终推送到 main 的提交信息里。
 
 ## 程序目录
 

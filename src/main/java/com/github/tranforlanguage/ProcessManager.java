@@ -57,6 +57,9 @@ public class ProcessManager implements Listener {
             Bukkit.getPluginManager().registerEvents(this, plugin);
             optional("org.bukkit.event.entity.EntitySpawnEvent", event ->
                 sendEvent("EntitySpawn", ((org.bukkit.event.entity.EntityEvent) event).getEntityType().name()));
+            // VehicleCreateEvent is a separate hierarchy from EntitySpawnEvent.
+            optional("org.bukkit.event.vehicle.VehicleCreateEvent", event ->
+                sendEvent("EntitySpawn", ((org.bukkit.event.vehicle.VehicleEvent) event).getVehicle().getType().name()));
             // 1.12 introduced entity pickup; older servers use PlayerPickupItemEvent.
             boolean modern = optional("org.bukkit.event.entity.EntityPickupItemEvent", event -> {
                 try {
@@ -82,9 +85,18 @@ public class ProcessManager implements Listener {
             // 1.9 / 1.13 added gliding and swimming toggles; read them reflectively like advancements.
             optional("org.bukkit.event.entity.EntityToggleGlideEvent", event -> toggle(event, "PlayerToggleGlide", "isGliding"));
             optional("org.bukkit.event.entity.EntityToggleSwimEvent", event -> toggle(event, "PlayerToggleSwim", "isSwimming"));
+            // A separate opt-in stream covers every event class the running server exposes.
+            int subscribed = BukkitEventBridge.register(plugin, this, this::sendBukkitEvent);
+            if (subscribed > 0) plugin.getLogger().info("Registered " + subscribed + " Bukkit event classes for BukkitEvent subscribers");
+            else plugin.getLogger().warning("No Bukkit event classes could be registered; BukkitEvent subscriptions will not receive events");
             registered = true;
         }
         runtime.reload().whenComplete((v, error) -> { if (error != null) plugin.getLogger().severe("程序启动失败: " + error); });
+    }
+    private void sendBukkitEvent(Event event) {
+        if (!runtime.wantsSpigotEvents()) return;
+        String[] envelope = BukkitEventBridge.envelope(event);
+        runtime.sendEvent("BukkitEvent", envelope[0], envelope[1]);
     }
     private void toggle(Event event, String name, String state) {
         try {
@@ -101,7 +113,7 @@ public class ProcessManager implements Listener {
             return true;
         } catch (ClassNotFoundException e) { return false; }
     }
-    public void stop() { HandlerList.unregisterAll(this); registered = false; moves.clear(); runtime.close(); }
+    public void stop() { HandlerList.unregisterAll(this); registered = false; moves.clear(); api.clear(); runtime.close(); }
     public ProgramManager programs() { return runtime; }
     public java.util.concurrent.CompletableFuture<Void> reloadAsync() { return runtime.reload(); }
     public void restart() { reloadAsync(); }
@@ -126,6 +138,11 @@ public class ProcessManager implements Listener {
     @EventHandler
     public void onChat(AsyncPlayerChatEvent event) { sendEvent("PlayerChat", event.getPlayer().getName(), event.getMessage()); }
     @EventHandler
+    public void onPlayerCommand(org.bukkit.event.player.PlayerCommandPreprocessEvent event) {
+        String command = event.getMessage();
+        sendEvent("ServerCommand", event.getPlayer().getName(), command.startsWith("/") ? command.substring(1) : command);
+    }
+    @EventHandler
     public void onPlayerJoin(PlayerJoinEvent event) {
         sendEvent("PlayerJoin", event.getPlayer().getName());
     }
@@ -133,6 +150,7 @@ public class ProcessManager implements Listener {
     @EventHandler
     public void onPlayerQuit(PlayerQuitEvent event) {
         moves.forget(event.getPlayer().getUniqueId());
+        api.removeBossBar(event.getPlayer());
         sendEvent("PlayerQuit", event.getPlayer().getName());
     }
 

@@ -24,12 +24,12 @@ Spigot 发行 JAR 按最旧的 1.8 API 编译、输出 Java 8 字节码，移除
 | 加入、退出、聊天、重生 | 有 | 有 | 有 |
 | 方块破坏 | 有 | 有 | 有 |
 | 实体死亡、玩家死亡 | 有 | 有 | 有 |
-| 实体进入世界 | 新版有生成事件 | `ENTITY_LOAD`，包含区块加载的实体 | `EntityJoinLevelEvent`，包含区块加载的实体 |
+| 实体进入世界 | `EntitySpawnEvent`，覆盖生物、物品、投掷物；另有 `VehicleCreateEvent` | `ENTITY_LOAD`，包含区块加载的实体 | `EntityJoinLevelEvent`，包含区块加载的实体 |
 | 右键方块 | 有，含其他交互类型 | 有 | 有 |
 | 世界加载 | 有 | 有 | 有 |
 | 放置方块 | 有 | 有 | 有 |
 | 物品栏打开、关闭 | 有 | 有 | 有 |
-| 命令执行 | 有，Bukkit 服务器命令 | 有，包含玩家命令 | 有，包含玩家命令 |
+| 命令执行 | 有，控制台命令与玩家命令 | 有，包含玩家命令 | 有，包含玩家命令 |
 | 移动、掉落、拾取、物品栏点击、天气、点燃、悬挂实体破坏、伤害 | 有（生成/拾取按版本可选） | 有 | 有 |
 | 切换世界、游戏模式、经验等级、潜行/疾跑/飞行切换、上床/起床、雷暴 | 有（Bukkit 事件，取消的不发送） | 每 tick 比较玩家/世界状态 | 每 tick 比较玩家/世界状态 |
 | 快捷栏切换、饥饿值、上下载具、滑翔/游泳切换 | 有（滑翔 1.9+，游泳 1.13+） | 每 tick 比较玩家状态 | 每 tick 比较玩家状态 |
@@ -38,9 +38,15 @@ Spigot 发行 JAR 按最旧的 1.8 API 编译、输出 Java 8 字节码，移除
 
 模组中的物品/方块/实体值来自其平台表示，不能假定与 Bukkit Material 枚举名称完全相同。Bukkit `ProcessManager.TranForLanguageEvent` Java 事件可用（仅在存在监听器时创建），但不是跨加载器 Java API。`EntityDamage` / `EntityDeath` 包括玩家，`PlayerDeath` 是额外的玩家专用通知；事件名不同，订阅时按需选择，不能当作相同事件去重。Spigot `PlayerMove` 忽略仅转头事件，并默认按玩家限频至每 100ms 一次。
 
+Spigot 还提供 opt-in 的 `BukkitEvent` 通用事件流：程序在 `program.json` 的 `events` 中显式列出 `"BukkitEvent"` 后，会收到服务器 API 中**所有可注册 Bukkit 事件**的简单类名和 JSON 负载。它覆盖 1.8 到当前 API 的事件类清单，并会自动发现服务器 JAR 中新增的事件；这是 Spigot 专属逃生通道，不改变上表的跨平台稳定事件。字段与性能注意事项见[开发文档](development.md#56-全量-bukkit-事件bukkitevent仅-spigot)。
+
+Spigot 的标题、动作栏和 Tab 列表在旧版本 Bukkit API 中缺失，TFL 会在 1.8–1.12 通过服务器数据包补全；`setPlayerListHeaderFooter`、`setPlayerListName`、`playSound`、`getPing`、`giveExp`、`setLevel`、`setFlying`、`setAllowFlight`、`setSneaking`、`setSprinting`、`setTime`、`setWeather`、`getWorlds`、`getWorldInfo`、`setDifficulty`、`spawnEntity`、`strikeLightning`、`getNearbyEntities`、`getEntityInfo`、`teleportEntity`、`damageEntity`、`removeEntity`、`getItem`、`setItem`、`getInventory`、`getPotionEffects`、`addPotionEffect`、`removePotionEffect`、`clearPotionEffects`、`getServerInfo`、`getWorldBorder`、`setWorldBorder`、`sendPluginMessage`、`setPlayerTime`、`resetPlayerTime`、`setPlayerWeather`、`resetPlayerWeather`、`setFlySpeed`、`setWalkSpeed`、`setInvulnerable`、`sendBossBar`、`removeBossBar`、`spawnParticle`、`playEffect`、`sendSignChange`、`sendResourcePack`、`hasPermission`、`getWhitelist`、`setWhitelist`、`createGui`、`openGui`、`closeGui`、`removeGui`、`createMap`、`giveMap`、`removeMap` 目前也是 Spigot 专属 `@server` 方法。
+
+`invoke` 是 Spigot 的通用 Bukkit API 调用入口：它按目标描述符（服务器、玩家、世界、方块、实体、物品栏、GUI、Scoreboard、地图、世界边界等）调用公开 Bukkit 接口/类的方法，**不暴露 CraftBukkit/NMS 成员**。因此 Scoreboard、GUI 物品操作、地图视图等都可以通过 `invoke` 使用；具体目标、参数编码和限制见[开发文档](development.md#62-通用-bukkit-api-调用invoke仅-spigot)。
+
 ## 自动检查与边界
 
-CI 对锁定矩阵进行 API 编译/打包，Spigot 最旧目标运行共用核心集成测试，产物按平台和精确游戏版本命名；常规版本通过与项目版本一致的 `v*` 标签发布；本次 2.3.0 在带 `[release-v2.3.0]` 标记的 main 合并提交完整构建通过后创建标签并发布，拒绝移动已有标签。
+CI 对锁定矩阵进行 API 编译/打包，Spigot 最旧目标运行共用核心集成测试，产物按平台和精确游戏版本命名；常规版本通过与项目版本一致的 `v*` 标签发布。本次 2.4.0 将推送 `v2.4.0` 标签，在完整构建、真实服务端冒烟测试和产物检查通过后自动创建 Release；标签必须与项目版本一致，拒绝移动已有标签。
 
 共用核心测试实际编译并运行 C、C++、Python、Rust、JavaScript、Go、Ruby、PHP、Java、Lua 程序，检查十种语言同时运行并互相调用（直接调用、A→B→A 重入调用、错误传递、发布/订阅、停止后立即失败），检查多语言插件并行、独立停止/重载、启动失败隔离、事件订阅、退出码与关闭时取消准备，检查单条事件及时传输、UTF-8/JSON、服务器线程调度、重载后拒绝旧操作、未知语言、扩展适配器及关闭。编译通过只能证明 API 和打包检查成功，不能替代服务端启动、真实玩家和各游戏事件的运行验收。
 
